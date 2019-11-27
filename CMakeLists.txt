@@ -7,5 +7,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(velocypack)
 
+
 add_executable(test-tree agency-node-test.cpp helper.h)
+target_link_libraries(test-tree asan)
 target_link_libraries(test-tree velocypack)
+
+target_compile_options(test-tree PRIVATE "-fsanitize=address")
+target_compile_options(test-tree PRIVATE "-fsanitize=undefined")
+
+target_link_libraries(test-tree ubsan)
