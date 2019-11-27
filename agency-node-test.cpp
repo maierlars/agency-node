@@ -22,47 +22,80 @@ struct node;
 
 template <typename T> struct node_value {
   T value;
-
+  explicit node_value(T &&t) : value(std::forward<T>(t)) {}
   void into_builder(Builder &builder) const { builder.add(Value(value)); }
 };
 
-struct node_string : public node_value<std::string> {};
-struct node_double : public node_value<double> {};
-struct node_bool : public node_value<bool> {};
-
-template <typename T> struct node_container {
+template <typename T> struct node_type {
   using self_type = T;
 
   [[nodiscard]] T &self() noexcept { return *static_cast<T *>(this); }
   [[nodiscard]] T const &self() const noexcept {
     return *static_cast<T const *>(this);
   }
+};
+/*
+
+template<typename T, typename C>
+struct node_value_type : public node_value<T>, public node_type<C> {
+  explicit node_value_type(T&& t) : node_value<T>{std::forward<T>(t)} {}
+};
+*/
+
+using node_string = node_value<std::string>;
+using node_double = node_value<double>;
+using node_bool = node_value<bool>;
+
+// struct node_string : public node_value_type<std::string, node_string> {};
+// struct node_double : public node_value_type<double, node_double> {};
+// struct node_bool : public node_value_type<bool, node_bool> {};
+
+template <typename T> struct node_container : public node_type<T> {
 
   [[nodiscard]] std::shared_ptr<node const> get(std::string const &key) const
       noexcept(std::is_nothrow_invocable_v<decltype(&T::get_impl), T,
                                            std::string const &>) {
-    return self().get_impl(key);
+    return node_type<T>::self().get_impl(key);
+  };
+
+  [[nodiscard]] T set(std::string const &key,
+                      std::shared_ptr<node const> const &v) const
+      noexcept(std::is_nothrow_invocable_v<
+               decltype(&T::set_impl), T, std::string const &,
+               std::shared_ptr<node const> const &>) {
+    return node_type<T>::self().set_impl(key, v);
   };
 
   [[nodiscard]] T overlay(node_container<T> const &t) const noexcept(
-      std::is_nothrow_invocable_v<decltype(&T::overlay_impl), T, T const&>) {
-    return self().overlay_impl(t.self());
+      std::is_nothrow_invocable_v<decltype(&T::overlay_impl), T, T const &>) {
+    return node_type<T>::self().overlay_impl(t.self());
   }
 };
 
-template<typename T>
-constexpr const bool node_container_is_nothrow_get = std::is_nothrow_invocable_v<decltype(&T::get), T,
-    std::string const &>;
+template <typename T>
+constexpr const bool node_container_is_nothrow_get =
+    std::is_nothrow_invocable_v<decltype(&T::get), T, std::string const &>;
 
-template<typename T>
-constexpr const bool node_container_is_nothrow_overlay = std::is_nothrow_invocable_v<decltype(&T::overlay), node_container<T>,
-    node_container<T> const &>;
+template <typename T>
+constexpr const bool node_container_is_nothrow_overlay =
+    std::is_nothrow_invocable_v<decltype(&T::overlay), node_container<T>,
+                                node_container<T> const &>;
 
 struct node_array final : public node_container<node_array> {
   using container_type = std::vector<std::shared_ptr<node const>>;
   container_type value;
 
+  node_array() noexcept(std::is_nothrow_constructible_v<container_type>) =
+      default;
   explicit node_array(container_type value) : value(std::move(value)) {}
+
+  node_array(node_array const &) = delete;
+  node_array &operator=(node_array const &) = delete;
+
+  node_array(node_array &&) noexcept(
+      std::is_nothrow_move_constructible_v<container_type>) = default;
+  node_array &operator=(node_array &&) noexcept(
+      std::is_nothrow_move_assignable_v<container_type>) = default;
 
   [[nodiscard]] std::shared_ptr<node const>
   get_impl(std::string const &key) const noexcept;
@@ -71,8 +104,12 @@ struct node_array final : public node_container<node_array> {
     std::terminate();
   }
 
-  void into_builder(Builder &builder) const;
+  [[nodiscard]] node_array
+  set_impl(std::string const &key, std::shared_ptr<node const> const &v) const {
+    std::terminate();
+  }
 
+  void into_builder(Builder &builder) const;
 };
 
 static_assert(node_container_is_nothrow_get<node_array>);
@@ -83,17 +120,33 @@ struct node_object final : public node_container<node_object> {
 
   container_type value;
 
+  node_object() noexcept(std::is_nothrow_constructible_v<container_type>) =
+      default;
   explicit node_object(container_type value) : value(std::move(value)) {}
   explicit node_object(std::string const &key,
                        std::shared_ptr<node const> const &v) {
     value[key] = v;
   }
-  node_object() noexcept = default;
+
+  node_object(node_object const &) = delete;
+  node_object &operator=(node_object const &) = delete;
+
+  node_object(node_object &&) noexcept(
+      std::is_nothrow_move_constructible_v<container_type>) = default;
+  node_object &operator=(node_object &&) noexcept(
+      std::is_nothrow_move_assignable_v<container_type>) = default;
 
   [[nodiscard]] node_object overlay_impl(node_object const &ov) const noexcept;
 
   [[nodiscard]] std::shared_ptr<node const>
   get_impl(std::string const &key) const noexcept;
+
+  [[nodiscard]] node_object
+  set_impl(std::string const &key, std::shared_ptr<node const> const &v) const {
+    container_type result{value};
+    result[key] = v;
+    return node_object{std::move(result)};
+  }
 
   void into_builder(Builder &builder) const;
 };
@@ -143,6 +196,10 @@ struct node : public std::enable_shared_from_this<node> {
     return std::make_shared<node const>(node_object{});
   };
 
+  template <typename T> std::shared_ptr<node const> static value_node(T &&t) {
+    return std::make_shared<node const>(node_value<T>{std::forward<T>(t)});
+  }
+
   void into_builder(Builder &builder) const;
 
   template <typename T> explicit node(T &&v) : value(std::forward<T>(v)){};
@@ -153,8 +210,8 @@ struct node : public std::enable_shared_from_this<node> {
 
   bool has(path_slice const &path) const { return get(path) != nullptr; }
 
-  std::shared_ptr<node const> set(path_slice const &path,
-                                  std::shared_ptr<node> const &node) const;
+  std::shared_ptr<node const>
+  set(path_slice const &path, std::shared_ptr<node const> const &node) const;
 
   /*
    * Extract returns a node that contains all the subtrees of the specified
@@ -177,18 +234,9 @@ struct node : public std::enable_shared_from_this<node> {
   std::shared_ptr<node const>
   overlay(std::shared_ptr<node const> const &ov) const;
 
-private:
   std::shared_ptr<node const> static nodeFromPath(
-      immut_list<std::string> const &path, std::shared_ptr<node> const &node) {
-    if (path.empty()) {
-      return node;
-    }
-
-    auto &[head, tail] = path;
-
-    return std::make_shared<struct node const>(
-        node_object{head, nodeFromPath(tail, node)});
-  }
+      immut_list<std::string> const &path,
+      std::shared_ptr<node const> const &node);
 
   /*
 
@@ -383,10 +431,59 @@ node::overlay(std::shared_ptr<node const> const &ov) const {
   return std::visit(node_overlay_visitor{ov}, value, ov->value);
 }
 
-std::shared_ptr<node const> node::set(const node::path_slice &path,
-                                      std::shared_ptr<node> const &node) const {
-  // TODO
-  return std::shared_ptr<struct node const>();
+template <typename P, typename N> struct node_set_visitor {
+
+  P &path;
+  N &node;
+
+  node_set_visitor(P &path, N &node) : path(path), node(node) {}
+
+  template <typename T>
+  auto operator()(node_container<T> const &c) const
+      -> std::shared_ptr<struct node const> {
+
+    auto &[head, tail] = path;
+    // head and tail are _not_ variables but local name bindings and
+    // thus can not be captured by a lambda, except like doing so:
+    auto new_child = [&, head = head, tail = tail]() {
+      if (auto child = c.get(head); child != nullptr) {
+        return child->set(tail, node);
+      }
+      return node::nodeFromPath(tail, node);
+    }();
+
+    auto nc = c.set(head, new_child);
+    return std::make_shared<struct node const>(std::move(nc.self()));
+  }
+
+  template <typename T>
+  auto operator()(node_value<T> const &) const
+      -> std::shared_ptr<struct node const> {
+    return node::nodeFromPath(path, node);
+  }
+};
+
+std::shared_ptr<node const>
+node::set(const node::path_slice &path,
+          std::shared_ptr<node const> const &node) const {
+  if (path.empty()) {
+    return node;
+  }
+
+  return std::visit(node_set_visitor{path, node}, value);
+}
+
+std::shared_ptr<node const>
+node::nodeFromPath(immut_list<std::string> const &path,
+                   std::shared_ptr<node const> const &node) {
+  if (path.empty()) {
+    return node;
+  }
+
+  auto &[head, tail] = path;
+
+  return std::make_shared<struct node const>(
+      node_object{head, nodeFromPath(tail, node)});
 }
 
 std::ostream &operator<<(std::ostream &os, node const &n) {
@@ -410,5 +507,9 @@ int main(int argc, char *argv[]) {
       node::from_buffer_ptr(R"=({"key":{"bar":12}, "foo":["blub"]})="_vpack);
   std::cout << *m << std::endl;
 
-  std::cout << *n->overlay(m);
+  std::cout << *n->overlay(m) << std::endl;
+
+  auto p = n->set(immut_list{"key"s, "world"s}, node::value_node(12.0));
+
+  std::cout << *p << std::endl;
 }
