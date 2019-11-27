@@ -132,7 +132,11 @@ struct node : public std::enable_shared_from_this<node> {
 
   template <typename T> explicit node(T &&v) : value(std::forward<T>(v)){};
 
-  std::shared_ptr<node const> remove(path_slice const &path) const;
+  std::shared_ptr<node const> remove(path_slice const &path) const {
+    return set(path, nullptr);
+  }
+
+  bool has(path_slice const &path) const { return get(path) != nullptr; }
 
   std::shared_ptr<node const> set(path_slice const &path,
                                   std::shared_ptr<node> const &node) const;
@@ -159,17 +163,19 @@ struct node : public std::enable_shared_from_this<node> {
   overlay(std::shared_ptr<node const> const &ov) const;
 
 private:
-  static std::shared_ptr<node const>
-  nodeFromPath(immut_list<std::string> const &path,
-               std::shared_ptr<node> const &node) {
+  std::shared_ptr<node const> static nodeFromPath(
+      immut_list<std::string> const &path, std::shared_ptr<node> const &node) {
     if (path.empty()) {
       return node;
     }
 
-    auto& [head, tail] = path;
+    auto &[head, tail] = path;
 
-    return std::make_shared<node const>(node_object{head, nodeFromPath(tail, node)});
-  }/*
+    return std::make_shared<struct node const>(
+        node_object{head, nodeFromPath(tail, node)});
+  }
+
+  /*
 
   std::shared_ptr<node const> set(immut_list<std::string> const &path,
                                   std::shared_ptr<node> const &node) const {
@@ -360,6 +366,12 @@ struct node_overlay_visitor {
 std::shared_ptr<node const>
 node::overlay(std::shared_ptr<node const> const &ov) const {
   return std::visit(node_overlay_visitor{ov}, value, ov->value);
+}
+
+std::shared_ptr<node const> node::set(const node::path_slice &path,
+                                      std::shared_ptr<node> const &node) const {
+  // TODO
+  return std::shared_ptr<struct node const>();
 }
 
 std::ostream &operator<<(std::ostream &os, node const &n) {
