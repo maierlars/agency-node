@@ -39,7 +39,8 @@ template <typename T> struct node_container {
   }
 
   [[nodiscard]] std::shared_ptr<node const> get(std::string const &key) const
-  noexcept(noexcept(std::declval<T>().get_impl(std::declval<std::string>()))) {
+      noexcept(
+          noexcept(std::declval<T>().get_impl(std::declval<std::string>()))) {
     return self().get_impl(key);
   };
 
@@ -71,6 +72,10 @@ struct node_object final : public node_container<node_object> {
   container_type value;
 
   explicit node_object(container_type value) : value(std::move(value)) {}
+  explicit node_object(std::string const &key,
+                       std::shared_ptr<node const> const &v) {
+    value[key] = v;
+  }
   node_object() noexcept = default;
 
   [[nodiscard]] node_object overlay_impl(node_object const &ov) const noexcept;
@@ -104,7 +109,8 @@ std::shared_ptr<node const> node_object::get_impl(std::string const &key) const
 }
 
 struct node : public std::enable_shared_from_this<node> {
-  std::variant<node_string, node_double, node_bool, node_array, node_object> value;
+  std::variant<node_string, node_double, node_bool, node_array, node_object>
+      value;
 
   using path_slice = immut_list<std::string>;
 
@@ -153,64 +159,64 @@ struct node : public std::enable_shared_from_this<node> {
   overlay(std::shared_ptr<node const> const &ov) const;
 
 private:
-  /*static std::shared_ptr<node const>
-  nodeFromPath(immut_list<std::string> const& path, std::shared_ptr<node>
-  const& node) { if (path.empty()) { return node;
+  static std::shared_ptr<node const>
+  nodeFromPath(immut_list<std::string> const &path,
+               std::shared_ptr<node> const &node) {
+    if (path.empty()) {
+      return node;
+    }
+
+    auto& [head, tail] = path;
+
+    return std::make_shared<node const>(node_object{head, nodeFromPath(tail, node)});
+  }/*
+
+  std::shared_ptr<node const> set(immut_list<std::string> const &path,
+                                  std::shared_ptr<node> const &node) const {
+    if (path.empty()) {
+      return node;
     }
 
     auto [head, tail] = path;
 
-    return {node_object{head, nodeFromPath(tail, node)}};
+    return std::visit(visitor{
+        [&](node_object const &object) {
+          auto newChild = []() {
+            if (auto it = object.value.get(head); it != object.value.end()) {
+              return it->set(tail, node);
+            }
+            return nodeFromPath(tail, node);
+          }();
+
+          return {node_object{object.value.set(head, newChild)}};
+        },
+        [](auto child) {
+          auto newChild = nodeFromPath(path, node);
+          return newChild;
+        }});
   }
 
   std::shared_ptr<node const>
-  set(immut_list<std::string> const& path, std::shared_ptr<node> const& node)
-  const { if (path.empty()) { return node;
-    }
-
-    auto [head, tail] = path;
-
-    return std::visit(visitor {
-      [&](node_object const& object) {
-        auto newChild = [](){
-          if (auto it = object.value.get(head); it != object.value.end()) {
-            return it->set(tail, node);
-          }
-          return nodeFromPath(tail, node);
-        }();
-
-        return {node_object{object.value.set(head, newChild)}};
-      },
-      [](auto child) {
-        auto newChild = nodeFromPath(path, node);
-        return newChild;
-      }
-    });
-  }
-
-  std::shared_ptr<node const>
-  remove(immut_list<std::string> const& path) const {
+  remove(immut_list<std::string> const &path) const {
     if (path.empty()) {
       return nullptr;
     }
 
     auto [head, tail] = path;
 
-    return std::visit(visitor {
-      [&](node_object const& object) {
-        if (auto it = object.value.get(head); it != object.value.end()) {
-          auto newChild = it->remove(tail);
-          TRI_ASSERT((newChild == nullptr) == tail.empty());
-          return {node_object{object.value.set(head, newChild)}};
-        }
+    return std::visit(visitor{
+        [&](node_object const &object) {
+          if (auto it = object.value.get(head); it != object.value.end()) {
+            auto newChild = it->remove(tail);
+            TRI_ASSERT((newChild == nullptr) == tail.empty());
+            return {node_object{object.value.set(head, newChild)}};
+          }
 
-        return shared_from_this();
-      },
-      [](auto child) {
-        return shared_from_this();
-      }
-    });
-  }*/
+          return shared_from_this();
+        },
+        [](auto child) { return shared_from_this(); }});
+  }
+  */
 };
 
 template <typename T>
@@ -320,6 +326,9 @@ void node::into_builder(Builder &builder) const {
 struct node_overlay_visitor {
   std::shared_ptr<node const> const &ov;
 
+  /*
+   * For container types, do overlay on the underlying container
+   */
   template <typename T>
   std::shared_ptr<node const> operator()(node_container<T> const &base,
                                          node_container<T> const &overlay) const
@@ -327,6 +336,9 @@ struct node_overlay_visitor {
     return std::make_shared<node>(base.overlay(overlay));
   }
 
+  /*
+   * Value types are simple replaces by the overlay value.
+   */
   template <typename T>
   std::shared_ptr<node const> operator()(node_value<T> const &base,
                                          node_value<T> const &overlay) const
@@ -334,6 +346,9 @@ struct node_overlay_visitor {
     return ov;
   }
 
+  /*
+   * If the types are different we always take the overlay value.
+   */
   template <typename T, typename S,
             typename = std::enable_if_t<
                 !std::is_same_v<std::decay_t<T>, std::decay_t<S>>>>
@@ -348,36 +363,10 @@ node::overlay(std::shared_ptr<node const> const &ov) const {
 }
 
 std::ostream &operator<<(std::ostream &os, node const &n) {
-
-  std::visit(
-      visitor{[&](node_object const &object) {
-                os << '{';
-                bool first = true;
-                for (auto const &e : object.value) {
-                  if (!first) {
-                    os << ',';
-                  }
-                  first = false;
-                  os << e.first << ':' << *e.second;
-                }
-                os << '}';
-              },
-              [&](node_array const &array) {
-                os << '[';
-                bool first = true;
-                for (auto const &e : array.value) {
-                  if (!first) {
-                    os << ',';
-                  }
-                  first = false;
-                  os << *e;
-                }
-                os << ']';
-              },
-              [&](node_double const &v) { os << v.value; },
-              [&](node_bool const &v) { os << (v.value ? "true" : "false"); },
-              [&](node_string const &v) { os << '"' << v.value << '"'; }},
-      n.value);
+  // let keep things simple
+  Builder builder;
+  n.into_builder(builder);
+  os << builder.toJson();
   return os;
 }
 
@@ -388,9 +377,10 @@ int main(int argc, char *argv[]) {
   auto n =
       node::from_buffer_ptr(R"=({"key":{"hello":"world", "foo":12}})="_vpack);
 
-  std::cout << *n->get({"key"s, "hello"s}) << std::endl;
+  std::cout << *n << std::endl;
 
-  auto m = node::from_buffer_ptr(R"=({"key":{"bar":12}, "foo":["blub"]})="_vpack);
+  auto m =
+      node::from_buffer_ptr(R"=({"key":{"bar":12}, "foo":["blub"]})="_vpack);
   std::cout << *m << std::endl;
 
   std::cout << *n->overlay(m);
