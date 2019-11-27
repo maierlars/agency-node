@@ -39,16 +39,24 @@ template <typename T> struct node_container {
   }
 
   [[nodiscard]] std::shared_ptr<node const> get(std::string const &key) const
-      noexcept(
-          noexcept(std::declval<T>().get_impl(std::declval<std::string>()))) {
+      noexcept(std::is_nothrow_invocable_v<decltype(&T::get_impl), T,
+                                           std::string const &>) {
     return self().get_impl(key);
   };
 
-  [[nodiscard]] T overlay(node_container<T> const &t) const
-      noexcept(noexcept(std::declval<T>().overlay_impl(std::declval<T>()))) {
+  [[nodiscard]] T overlay(node_container<T> const &t) const noexcept(
+      std::is_nothrow_invocable_v<decltype(&T::overlay_impl), T, T const&>) {
     return self().overlay_impl(t.self());
   }
 };
+
+template<typename T>
+constexpr const bool node_container_is_nothrow_get = std::is_nothrow_invocable_v<decltype(&T::get), T,
+    std::string const &>;
+
+template<typename T>
+constexpr const bool node_container_is_nothrow_overlay = std::is_nothrow_invocable_v<decltype(&T::overlay), node_container<T>,
+    node_container<T> const &>;
 
 struct node_array final : public node_container<node_array> {
   using container_type = std::vector<std::shared_ptr<node const>>;
@@ -64,7 +72,11 @@ struct node_array final : public node_container<node_array> {
   }
 
   void into_builder(Builder &builder) const;
+
 };
+
+static_assert(node_container_is_nothrow_get<node_array>);
+static_assert(node_container_is_nothrow_overlay<node_array>);
 
 struct node_object final : public node_container<node_object> {
   using container_type = std::map<std::string, std::shared_ptr<node const>>;
@@ -85,6 +97,9 @@ struct node_object final : public node_container<node_object> {
 
   void into_builder(Builder &builder) const;
 };
+
+static_assert(node_container_is_nothrow_get<node_object>);
+static_assert(node_container_is_nothrow_overlay<node_object>);
 
 std::shared_ptr<node const> node_array::get_impl(std::string const &key) const
     noexcept {
