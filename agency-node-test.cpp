@@ -39,11 +39,12 @@ template <typename T> struct node_container {
   }
 
   [[nodiscard]] std::shared_ptr<node const> get(std::string const &key) const
-      noexcept {
+  noexcept(noexcept(std::declval<T>().get_impl(std::declval<std::string>()))) {
     return self().get_impl(key);
   };
 
-  [[nodiscard]] T overlay(node_container<T> const &t) const noexcept {
+  [[nodiscard]] T overlay(node_container<T> const &t) const
+      noexcept(noexcept(std::declval<T>().overlay_impl(std::declval<T>()))) {
     return self().overlay_impl(t.self());
   }
 };
@@ -56,6 +57,10 @@ struct node_array final : public node_container<node_array> {
 
   [[nodiscard]] std::shared_ptr<node const>
   get_impl(std::string const &key) const noexcept;
+
+  [[nodiscard]] node_array overlay_impl(node_array const &ov) const noexcept {
+    std::terminate();
+  }
 
   void into_builder(Builder &builder) const;
 };
@@ -99,7 +104,7 @@ std::shared_ptr<node const> node_object::get_impl(std::string const &key) const
 }
 
 struct node : public std::enable_shared_from_this<node> {
-  std::variant<node_string, node_double, node_bool, node_object> value;
+  std::variant<node_string, node_double, node_bool, node_array, node_object> value;
 
   using path_slice = immut_list<std::string>;
 
@@ -114,8 +119,6 @@ struct node : public std::enable_shared_from_this<node> {
   std::shared_ptr<node const> static from_buffer_ptr(Buffer<T> const &ptr);
   std::shared_ptr<node const> static from_slice(Slice slice);
   std::shared_ptr<node const> static empty_node() {
-    // TODO maybe empty node can be nullptr and then in set we check if this ==
-    // nullptr ? :D
     return std::make_shared<node const>(node_object{});
   };
 
@@ -229,20 +232,27 @@ std::shared_ptr<node const> node::from_slice(Slice slice) {
       container[member.key.copyString()] = node::from_slice(member.value);
     }
     return std::make_shared<node const>(node_object{std::move(container)});
+  } else if (slice.isArray()) {
+    node_array::container_type container;
+    container.reserve(slice.length());
+    for (auto const &member : ArrayIterator(slice)) {
+      container.push_back(node::from_slice(member));
+    }
+    return std::make_shared<node const>(node_array{std::move(container)});
   } else {
     return nullptr;
   }
 }
 
-template <typename Head, typename Tail> struct node_visitor_get {
-  Head &head;
-  Tail &tail;
+template <typename P> struct node_visitor_get {
+  P &path;
 
-  node_visitor_get(Head &head, Tail &tail) : head(head), tail(tail) {}
+  explicit node_visitor_get(P &path) noexcept : path(path) {}
 
   template <typename T>
   auto operator()(node_container<T> const &c) const noexcept
       -> std::shared_ptr<node const> {
+    auto &[head, tail] = path;
     if (auto child = c.get(head); child != nullptr) {
       return child->get(tail);
     }
@@ -262,8 +272,7 @@ std::shared_ptr<node const> node::get(immut_list<std::string> const &path) const
     return shared_from_this();
   }
 
-  auto &[head, tail] = path;
-  return std::visit(node_visitor_get(head, tail), value);
+  return std::visit(node_visitor_get{path}, value);
 }
 
 void node_object::into_builder(Builder &builder) const {
@@ -275,8 +284,14 @@ void node_object::into_builder(Builder &builder) const {
 }
 
 node_object node_object::overlay_impl(node_object const &ov) const noexcept {
+  /*
+   * Copy all values from the base node. If the overlay contains a member that
+   * has `nullptr` as value, remove the value from the result.
+   * If the key is not set in the current node, just add it.
+   * Otherwise overlay the base child by the overlay child.
+   */
   container_type result{value};
-  for (auto const& member : ov.value) {
+  for (auto const &member : ov.value) {
     if (member.second == nullptr) {
       result.erase(member.first);
     } else {
@@ -308,7 +323,7 @@ struct node_overlay_visitor {
   template <typename T>
   std::shared_ptr<node const> operator()(node_container<T> const &base,
                                          node_container<T> const &overlay) const
-      noexcept {
+      noexcept(noexcept(base.overlay(overlay))) {
     return std::make_shared<node>(base.overlay(overlay));
   }
 
@@ -375,7 +390,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << *n->get({"key"s, "hello"s}) << std::endl;
 
-  auto m = node::from_buffer_ptr(R"=({"key":{"bar":12}, "foo":"blub"})="_vpack);
+  auto m = node::from_buffer_ptr(R"=({"key":{"bar":12}, "foo":["blub"]})="_vpack);
   std::cout << *m << std::endl;
 
   std::cout << *n->overlay(m);
