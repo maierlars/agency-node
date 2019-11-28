@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_subdirectory(velocypack)
 
 
-add_executable(test-tree agency-node-test.cpp helper.h)
+add_executable(test-tree agency-node-test.cpp helper-immut.h operation-deserializer.h node.h node.cpp helper-strings.h node-operations.h)
 target_link_libraries(test-tree asan)
 target_link_libraries(test-tree velocypack)
 

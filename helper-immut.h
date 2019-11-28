@@ -13,7 +13,7 @@ using namespace arangodb::velocypack;
 
 using VPackBufferPtr = std::shared_ptr<Buffer<uint8_t>>;
 
-Buffer<uint8_t> vpackFromJsonString(char const *c) {
+static inline Buffer<uint8_t> vpackFromJsonString(char const* c) {
   Options options;
   options.checkAttributeUniqueness = true;
   Parser parser(&options);
@@ -25,30 +25,21 @@ Buffer<uint8_t> vpackFromJsonString(char const *c) {
   return b;
 }
 
-Buffer<uint8_t> operator"" _vpack(const char *json, size_t) {
+static inline Buffer<uint8_t> operator"" _vpack(const char* json, size_t) {
   return vpackFromJsonString(json);
 }
 
-template <class... Ts> struct visitor : Ts... { using Ts::operator()...; };
-template <class... Ts> visitor(Ts...)->visitor<Ts...>;
+template <class... Ts>
+struct visitor : Ts... {
+  using Ts::operator()...;
+};
+template <class... Ts>
+visitor(Ts...)->visitor<Ts...>;
 
-template<typename T>
-std::optional<T> string_to_number(std::string const& str) {
-    T a = T();
-    for (char c : str) {
-        if ('0' <= c && c <= '9') {
-            a = 10 * a + c - '0';
-        } else {
-            return {};
-        }
-    }
-    return a;
-}
-
-
-template <typename T> struct immut_list {
-
-  template <typename S> struct element {
+template <typename T>
+struct immut_list {
+  template <typename S>
+  struct element {
     using pointer = std::shared_ptr<element<S>>;
 
     S value;
@@ -76,25 +67,28 @@ template <typename T> struct immut_list {
   }
 
   immut_list() : head(nullptr) {}
-  explicit immut_list(typename element<T>::pointer head) : head(std::move(head)) {}
+  explicit immut_list(typename element<T>::pointer head)
+      : head(std::move(head)) {}
 };
 
 namespace std {
-template <typename T> struct tuple_size<immut_list<T>> {
+template <typename T>
+struct tuple_size<immut_list<T>> {
   constexpr static auto value = 2;
 };
 
-template <typename T> struct tuple_element<0, immut_list<T>> {
+template <typename T>
+struct tuple_element<0, immut_list<T>> {
   using type = T;
 };
 
-template <typename T> struct tuple_element<1, immut_list<T>> {
+template <typename T>
+struct tuple_element<1, immut_list<T>> {
   using type = immut_list<T>;
 };
 
 template <std::size_t I, typename T>
-auto get(immut_list<T> const &l) ->
-typename std::tuple_element<I, immut_list<T>>::type {
+auto get(immut_list<T> const& l) -> typename std::tuple_element<I, immut_list<T>>::type {
   static_assert(0 <= I && I <= 1);
 
   if constexpr (I == 0) {
@@ -103,6 +97,6 @@ typename std::tuple_element<I, immut_list<T>>::type {
     return immut_list<T>{l.head->next};
   }
 }
-} // namespace std
+}  // namespace std
 
 #endif
