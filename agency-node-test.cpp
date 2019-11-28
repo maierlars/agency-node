@@ -105,8 +105,14 @@ int main(int argc, char* argv[]) {
   auto r = node::from_buffer_ptr(R"=({"key":[1, 2, 3, 4, 5, 6]})="_vpack);
   std::cout << *r << std::endl;
 
-  auto r1 = q->modify({
-      {immut_list{"baz"s}, pop_operator{}},
+  auto r1 = r->modify({
+      {immut_list{"baz"s}, pop_operator{}},  // pop on baz should not create a node_null
+      {immut_list{"key"s}, pop_operator{}},
   });
   std::cout << *r1 << std::endl;
+
+  auto r2 = r->modify({
+      {immut_list{"key"s}, shift_operator{}},
+  });
+  std::cout << *r2 << std::endl;
 }

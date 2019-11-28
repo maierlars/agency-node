@@ -17,18 +17,24 @@
 struct null_type {};
 
 template <typename T>
-struct node_value {
+struct node_value final {
   T value;
 
   explicit node_value(T&& t) : value(std::move(t)) {}
   explicit node_value(T const& t) : value(t) {}
+
+  node_value(node_value const&) = delete;
+  node_value& operator=(node_value const&) = delete;
+  node_value(node_value &&) noexcept = default;
+  node_value& operator=(node_value &&) noexcept = default;
+
   void into_builder(arangodb::velocypack::Builder& builder) const {
     builder.add(Value(value));
   }
 };
 
 template <>
-struct node_value<null_type> {
+struct node_value<null_type> final {
   void into_builder(arangodb::velocypack::Builder& builder) const {
     builder.add(arangodb::velocypack::Slice::nullSlice());
   }
@@ -60,14 +66,16 @@ auto inline make_node_ptr(T&&... t) -> node_ptr {
   return std::make_shared<node const>(std::forward<T>(t)...);
 }
 
-using node_variant =
+using node_value_variant =
     std::variant<node_string, node_double, node_bool, node_array, node_object, node_null>;
+
 
 template <typename T>
 struct node_container : public node_type<T> {
-  [[nodiscard]] node_ptr get(std::string const& key) const
-      noexcept(std::is_nothrow_invocable_v<decltype(&T::get_impl), T, std::string const&>) {
-    return node_type<T>::self().get_impl(key);
+  template <typename K>
+  [[nodiscard]] node_ptr get(K&& key) const
+      noexcept(std::is_nothrow_invocable_v<decltype(&T::get_impl), T, decltype(std::forward<K>(key))>) {
+    return node_type<T>::self().get_impl(std::forward<K>(key));
   };
 
   [[nodiscard]] node_ptr set(std::string const& key, node_ptr const& v) const
@@ -83,7 +91,7 @@ struct node_container : public node_type<T> {
 
 template <typename T>
 constexpr const bool node_container_is_nothrow_get =
-    std::is_nothrow_invocable_v<decltype(&T::get), T, std::string const&>;
+    std::is_nothrow_invocable_v<decltype(&T::template get<std::string const&>), T, std::string const&>;
 
 template <typename T>
 constexpr const bool node_container_is_nothrow_overlay =
@@ -139,7 +147,7 @@ static_assert(node_container_is_nothrow_overlay<node_object>);
 
 struct node : public std::enable_shared_from_this<node> {
  private:
-  node_variant value;
+  node_value_variant value;
 
  public:
   using path_slice = immut_list<std::string>;
