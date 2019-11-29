@@ -28,6 +28,13 @@ struct node_value final {
   node_value(node_value&&) noexcept = default;
   node_value& operator=(node_value&&) noexcept = default;
 
+  bool operator==(node_value const& other) const noexcept {
+    return value == other.value;
+  }
+  bool operator!=(node_value const& other) const noexcept {
+    return value != other.value;
+  }
+
   void into_builder(arangodb::velocypack::Builder& builder) const {
     builder.add(Value(value));
   }
@@ -37,6 +44,12 @@ template <>
 struct node_value<null_type> final {
   void into_builder(arangodb::velocypack::Builder& builder) const {
     builder.add(arangodb::velocypack::Slice::nullSlice());
+  }
+  bool operator==(node_value<null_type> const& other) const noexcept {
+    return true;
+  }
+  bool operator!=(node_value<null_type> const& other) const noexcept {
+    return false;
   }
 };
 
@@ -85,6 +98,15 @@ struct node_container : public node_type<T> {
   [[nodiscard]] T overlay(node_container<T> const& t) const
       noexcept(std::is_nothrow_invocable_v<decltype(&T::overlay_impl), T, T const&>) {
     return node_type<T>::self().overlay_impl(t.self());
+  }
+
+  // TODO those implementations are wrong since std::shared_ptr compare the pointer values
+  // instead of the objects.
+  bool operator==(node_container<T> const& other) const noexcept {
+    return node_type<T>::self().value == other.self().value;
+  }
+  bool operator!=(node_container<T> const& other) const noexcept {
+    return node_type<T>::self().value != other.self().value;
   }
 };
 
@@ -216,6 +238,9 @@ struct node : public std::enable_shared_from_this<node> {
   node_ptr overlay(node_ptr const& ov) const;
 
   void into_builder(arangodb::velocypack::Builder& builder) const;
+
+  bool operator==(node const& n) const { return value == n.value; }
+  bool operator!=(node const& n) const { return value != n.value; }
 
  private:
   static thread_local node_ptr null_value_node;

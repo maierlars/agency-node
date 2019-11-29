@@ -37,7 +37,7 @@ struct value_operator_adapter : private F {
   }
 
  private:
-  template <typename E = F, std::enable_if_t<std::negation_v<std::is_base_of_v<value_operator_type_restricted, E>>, int> = 0>
+  template <typename E = F, std::enable_if_t<std::negation_v<std::is_base_of<value_operator_type_restricted, E>>, int> = 0>
   auto visit_node(node_ptr const& node) const {
     return make_node_ptr(node->visit(self()));
   }
@@ -56,7 +56,7 @@ struct value_operator_adapter : private F {
     return node;
   }
 
-  template <typename E = F, std::enable_if_t<std::negation_v<std::is_base_of_v<value_operator_no_create_node, E>>, int> = 0>
+  template <typename E = F, std::enable_if_t<std::negation_v<std::is_base_of<value_operator_no_create_node, E>>, int> = 0>
   [[nodiscard]] node_ptr const& fix_node(node_ptr const& node) const noexcept {
     return node::node_or_null(node);
   }
