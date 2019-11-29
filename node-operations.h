@@ -145,4 +145,17 @@ struct set_operator {
   node_ptr const& operator()(node_ptr const&) const { return node; }
 };
 
+struct erase_value_operator : detail::value_operator_no_create_node,
+                              detail::value_operator_only_for<node_array> {
+  node_ptr node;
+
+  explicit erase_value_operator(node_ptr node) : node(std::move(node)) {}
+
+  node_array operator()(node_array const& array) const noexcept {
+    return array.erase(node);
+  }
+};
+
+using erase_operator = detail::value_operator_adapter<erase_value_operator>;
+
 #endif  // AGENCY_NODE_OPERATIONS_H

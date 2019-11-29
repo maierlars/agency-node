@@ -24,22 +24,22 @@ struct store {
     set_internal(root->modify(operations));
   }
 
-  void set(node_ptr new_root) {
+  [[deprecated]] void set(node_ptr new_root) {
     std::unique_lock modify_guard(root_modify_mutex);
     set_internal(std::move(new_root));
   }
 
-  [[nodiscard]] node_ptr read() const noexcept {
+  [[nodiscard]] node_ptr read() const {
     std::shared_lock guard(root_mutex);
     return root;
   }
 
  private:
   void set_internal(node_ptr new_root) {
+    // TODO assert that this thread holds root_modify_mutex
     std::unique_lock guard(root_mutex);
     root = std::move(new_root);
   }
-
 
   std::mutex root_modify_mutex;
   std::shared_mutex root_mutex;

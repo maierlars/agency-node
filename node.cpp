@@ -1,6 +1,8 @@
 //
 // Created by lars on 28.11.19.
 //
+#include <exception>
+
 #include "node.h"
 #include "helper-strings.h"
 
@@ -28,7 +30,9 @@ node_ptr node_object::get_impl(std::string const& key) const noexcept {
   return nullptr;
 }
 
-thread_local node_ptr node::null_value_node = std::make_shared<const node>(node_null{});
+thread_local node_ptr node::null_value_node = make_node_ptr(node_null{});
+thread_local node_ptr node::empty_array_node = make_node_ptr(node_array{});
+thread_local node_ptr node::empty_object_node = make_node_ptr(node_object{});
 
 node_ptr node::from_slice(arangodb::velocypack::Slice s) {
   if (s.isNumber()) {
@@ -50,9 +54,11 @@ node_ptr node::from_slice(arangodb::velocypack::Slice s) {
       container.push_back(node::from_slice(member));
     }
     return make_node_ptr(node_array{std::move(container)});
-  } else {
-    return nullptr;
+  } else if (s.isNull()) {
+    return node::null_node();
   }
+
+  std::terminate(); // unhandled type
 }
 
 template <typename P>
@@ -78,7 +84,7 @@ struct node_visitor_get {
 
 node_ptr node::get(immut_list<std::string> const& path) const noexcept {
   if (path.empty()) {
-    return shared_from_this();
+    return node_ptr{shared_from_this()};
   }
 
   return std::visit(node_visitor_get{path}, value);
@@ -129,9 +135,21 @@ node_object::node_object(std::string const& key, node_ptr const& v) {
   value[key] = v;
 }
 
+bool node_object::operator==(node_object const& other) const noexcept {
+  auto const& left = value;
+  auto const& right = other.value;
+  using value_type = node_object::container_type::value_type;
+
+  return std::equal(left.cbegin(), left.cend(), right.cbegin(), right.cend(),
+                    [](value_type const& left, value_type const& right) {
+                      return left.first == right.first && *left.second == *right.second;
+                    });
+}
+
 void node_array::into_builder(Builder& builder) const {
   ArrayBuilder array_builder(&builder);
   for (auto const& member : value) {
+    assert(member != nullptr);
     member->into_builder(builder);
   }
 }
@@ -148,7 +166,7 @@ node_ptr node_array::set_impl(std::string const& key, node_ptr const& v) const {
 
     result[index] = v;
 
-    return std::make_shared<const node>(node_array{std::move(result)});
+    return make_node_ptr(node_array{std::move(result)});
   } else {
     node_object::container_type result;
 
@@ -158,7 +176,7 @@ node_ptr node_array::set_impl(std::string const& key, node_ptr const& v) const {
 
     result[key] = v;
 
-    return std::make_shared<const node>(node_object{std::move(result)});
+    return make_node_ptr(node_object{std::move(result)});
   }
 }
 
@@ -213,6 +231,23 @@ node_array node_array::push(node_ptr const& node) const {
   result.assign(value.begin(), value.end());
   result.emplace_back(node);
   return node_array{std::move(result)};
+}
+
+bool node_array::operator==(node_array const& other) const noexcept {
+  auto const& left = value;
+  auto const& right = other.value;
+
+  return std::equal(left.cbegin(), left.cend(), right.cbegin(), right.cend(),
+                    [](node_ptr const& left, node_ptr const& right) {
+                      return *left == *right;
+                    });
+}
+
+node_array node_array::erase(node_ptr const& node) const {
+  auto newContainer = container_type{};
+  std::copy_if(value.cbegin(), value.cend(), std::back_inserter(newContainer),
+               [&node](auto const& elt) { return *elt != *node; });
+  return node_array{newContainer};
 }
 
 void node::into_builder(Builder& builder) const {
@@ -270,7 +305,7 @@ struct node_set_visitor {
 
   template <typename T>
   auto operator()(node_container<T> const& c) const
-      -> std::shared_ptr<struct node const> {
+      -> node_ptr {
     auto& [head, tail] = path;
     // head and tail are _not_ variables but local name bindings and
     // thus can not be captured by a lambda, except like doing so:
@@ -285,7 +320,7 @@ struct node_set_visitor {
   }
 
   template <typename T>
-  auto operator()(node_value<T> const&) const -> std::shared_ptr<struct node const> {
+  auto operator()(node_value<T> const&) const -> node_ptr {
     return node::node_at_path(path, node);
   }
 };
@@ -309,7 +344,7 @@ node_ptr node::node_at_path(immut_list<std::string> const& path, node_ptr const&
 }
 
 node_ptr node::modify(std::vector<std::pair<path_slice, modify_operation>> const& operations) const {
-  auto curNode = shared_from_this();
+  auto curNode = node_ptr{shared_from_this()};
 
   for (auto const& it : operations) {
     auto& [path, op] = it;
@@ -322,7 +357,7 @@ node_ptr node::modify(std::vector<std::pair<path_slice, modify_operation>> const
 template <typename L>
 node_ptr node::extract(const L& list) const {
   // This is a possible implementation, but not optimized
-  auto node = empty_node();
+  auto node = empty_object();
   for (auto const& path : list) {
     node = node->set(path, get(path));
   }
@@ -335,4 +370,27 @@ std::ostream& operator<<(std::ostream& os, node const& n) {
   n.into_builder(builder);
   os << builder.toJson();
   return os;
+}
+
+template <typename T>
+bool node_container<T>::operator==(const node_container<T>& other) const noexcept {
+  return node_type<T>::self() == other.self();
+}
+
+template <typename T>
+bool node_container<T>::operator!=(const node_container<T>& other) const noexcept {
+  return !(node_type<T>::self() == other.self());
+}
+
+bool operator==(node_ptr const& other, std::nullptr_t) {
+  return !other.operator bool();
+}
+bool operator==(std::nullptr_t, node_ptr const& other) {
+  return !other.operator bool();
+}
+bool operator!=(node_ptr const& other, std::nullptr_t) {
+  return other.operator bool();
+}
+bool operator!=(std::nullptr_t, node_ptr const& other) {
+  return other.operator bool();
 }

@@ -72,11 +72,29 @@ struct node_array;
 struct node_object;
 
 struct node;
-using node_ptr = std::shared_ptr<node const>;
+
+class node_ptr : private std::shared_ptr<node const> {
+ public:
+  using std::shared_ptr<node const>::shared_ptr;
+  using std::shared_ptr<node const>::operator*;
+  using std::shared_ptr<node const>::operator->;
+  using std::shared_ptr<node const>::operator=;
+  using std::shared_ptr<node const>::operator bool;
+
+  explicit node_ptr(std::shared_ptr<node const>&& r) noexcept
+      : std::shared_ptr<node const>(std::move(r)) {};
+  explicit node_ptr(std::shared_ptr<node const> const& r) noexcept
+      : std::shared_ptr<node const>(r) {};
+};
+
+bool operator==(node_ptr const& other, std::nullptr_t);
+bool operator==(std::nullptr_t, node_ptr const& other);
+bool operator!=(node_ptr const& other, std::nullptr_t);
+bool operator!=(std::nullptr_t, node_ptr const& other);
 
 template <typename... T>
 auto inline make_node_ptr(T&&... t) -> node_ptr {
-  return std::make_shared<node const>(std::forward<T>(t)...);
+  return node_ptr{std::make_shared<node const>(std::forward<T>(t)...)};
 }
 
 using node_value_variant =
@@ -102,12 +120,8 @@ struct node_container : public node_type<T> {
 
   // TODO those implementations are wrong since std::shared_ptr compare the pointer values
   // instead of the objects.
-  bool operator==(node_container<T> const& other) const noexcept {
-    return node_type<T>::self().value == other.self().value;
-  }
-  bool operator!=(node_container<T> const& other) const noexcept {
-    return node_type<T>::self().value != other.self().value;
-  }
+  bool operator==(node_container<T> const& other) const noexcept;
+  bool operator!=(node_container<T> const& other) const noexcept;
 };
 
 template <typename T>
@@ -119,7 +133,7 @@ constexpr const bool node_container_is_nothrow_overlay =
     std::is_nothrow_invocable_v<decltype(&T::overlay), node_container<T>, node_container<T> const&>;
 
 struct node_array final : public node_container<node_array> {
-  using container_type = std::vector<std::shared_ptr<node const>>;
+  using container_type = std::vector<node_ptr>;
   container_type value;
 
   node_array() noexcept(std::is_nothrow_constructible_v<container_type>) = default;
@@ -140,10 +154,14 @@ struct node_array final : public node_container<node_array> {
   [[nodiscard]] node_array prepend(node_ptr const&) const;
   [[nodiscard]] node_array pop() const;
   [[nodiscard]] node_array shift() const;
+
+  [[nodiscard]] bool operator==(node_array const&) const noexcept;
+
+  [[nodiscard]] node_array erase(node_ptr const& value) const;
 };
 
 struct node_object final : public node_container<node_object> {
-  using container_type = std::map<std::string, std::shared_ptr<node const>>;
+  using container_type = std::map<std::string, node_ptr>;
 
   container_type value;
 
@@ -160,6 +178,8 @@ struct node_object final : public node_container<node_object> {
   [[nodiscard]] node_ptr get_impl(std::string const& key) const noexcept;
   [[nodiscard]] node_ptr set_impl(std::string const& key, node_ptr const& v) const;
   void into_builder(arangodb::velocypack::Builder& builder) const;
+
+  [[nodiscard]] bool operator==(node_object const&) const noexcept;
 };
 
 static_assert(node_container_is_nothrow_get<node_array>);
@@ -198,8 +218,9 @@ struct node : public std::enable_shared_from_this<node> {
   }
 
   static node_ptr from_slice(arangodb::velocypack::Slice s);
-  static node_ptr empty_node() { return make_node_ptr(node_object{}); };
+  static node_ptr const& empty_object() { return empty_object_node; };
   static node_ptr const& null_node() { return null_value_node; }
+  static node_ptr const& empty_array() { return empty_array_node; }
   static node_ptr const& node_or_null(node_ptr const& node);
 
   node_ptr static node_at_path(immut_list<std::string> const& path, node_ptr const& node);
@@ -239,11 +260,13 @@ struct node : public std::enable_shared_from_this<node> {
 
   void into_builder(arangodb::velocypack::Builder& builder) const;
 
-  bool operator==(node const& n) const { return value == n.value; }
-  bool operator!=(node const& n) const { return value != n.value; }
+  bool operator==(node const& n) const noexcept { return value == n.value; }
+  bool operator!=(node const& n) const noexcept { return value != n.value; }
 
  private:
   static thread_local node_ptr null_value_node;
+  static thread_local node_ptr empty_array_node;
+  static thread_local node_ptr empty_object_node;
 };
 
 std::ostream& operator<<(std::ostream& os, node const& n);

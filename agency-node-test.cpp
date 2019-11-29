@@ -50,11 +50,11 @@ int main(int argc, char* argv[]) {
 
   auto n1 = n->modify({
       {immut_list{"key"s, "hello"s},
-       [](std::shared_ptr<const node> const&) { return node::value_node(7.0); }},
+       [](node_ptr const&) { return node::value_node(7.0); }},
       {immut_list{"key"s, "foo"s},
-       [](std::shared_ptr<const node> const&) { return node::value_node("42"s); }},
+       [](node_ptr const&) { return node::value_node("42"s); }},
       {immut_list{"key"s, "foox"s, "bar"s},
-       [](std::shared_ptr<const node> const&) { return node::value_node(false); }},
+       [](node_ptr const&) { return node::value_node(false); }},
   });
 
   std::cout << *n << std::endl;
@@ -62,17 +62,17 @@ int main(int argc, char* argv[]) {
 
   auto m1 = m->modify({
       {immut_list{"foo"s, "0"s, "bar"s},
-       [](std::shared_ptr<const node> const&) { return node::value_node(false); }},
+       [](node_ptr const&) { return node::value_node(false); }},
   });
   std::cout << "m1 " << *m1 << std::endl;
   auto m2 = m->modify({
       {immut_list{"foo"s, "x"s, "bar"s},
-       [](std::shared_ptr<const node> const&) { return node::value_node(false); }},
+       [](node_ptr const&) { return node::value_node(false); }},
   });
   std::cout << "m2 " << *m2 << std::endl;
   auto m3 = m->modify({
       {immut_list{"foo"s, "3"s, "bar"s},
-       [](std::shared_ptr<const node> const&) { return node::value_node(false); }},
+       [](node_ptr const&) { return node::value_node(false); }},
   });
   std::cout << "m3 " << *m3 << std::endl;
 
@@ -121,4 +121,12 @@ int main(int argc, char* argv[]) {
   });
   std::cout << *r3 << std::endl;
 
+  auto fooBar = node::from_buffer_ptr(R"=({"foo": "bar"})="_vpack);
+  auto a = node::from_buffer_ptr(
+      R"=({"foo": ["a", "b", [null], 1, 2, {"foo": "bar"}, "a", [], "b", [], {"foo": "baz"}, {}, 1, 2]})="_vpack);
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::value_node(1.0)}}}) << std::endl;
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::value_node("a"s)}}}) << std::endl;
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::empty_array()}}}) << std::endl;
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::empty_object()}}}) << std::endl;
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{fooBar}}}) << std::endl;
 }
