@@ -25,8 +25,8 @@ struct node_value final {
 
   node_value(node_value const&) = delete;
   node_value& operator=(node_value const&) = delete;
-  node_value(node_value &&) noexcept = default;
-  node_value& operator=(node_value &&) noexcept = default;
+  node_value(node_value&&) noexcept = default;
+  node_value& operator=(node_value&&) noexcept = default;
 
   void into_builder(arangodb::velocypack::Builder& builder) const {
     builder.add(Value(value));
@@ -68,7 +68,6 @@ auto inline make_node_ptr(T&&... t) -> node_ptr {
 
 using node_value_variant =
     std::variant<node_string, node_double, node_bool, node_array, node_object, node_null>;
-
 
 template <typename T>
 struct node_container : public node_type<T> {
