@@ -245,6 +245,19 @@ struct node : public std::enable_shared_from_this<node> {
    */
   node_ptr modify(std::vector<modify_action> const& operations) const;
 
+  template<typename T>
+  using fold_operator = std::function<T(node_ptr const&, T const&)>;
+  template<typename T>
+  using fold_action = std::pair<path_slice, fold_operator<T>>;
+
+  template<typename T>
+  T fold(std::vector<fold_action<T>> const& actions, T i = T()) const {
+    for (fold_action<T> const& action : actions) {
+      i = action.second(get(action.first), i);
+    }
+    return i;
+  };
+
   /*
    * Extract returns a node that contains all the subtrees of the specified
    * nodes.

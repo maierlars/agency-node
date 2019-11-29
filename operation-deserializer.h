@@ -2,8 +2,8 @@
 // Created by lars on 28.11.19.
 //
 
-#ifndef VELOCYPACK_OPERATION_DESERIALIZER_H
-#define VELOCYPACK_OPERATION_DESERIALIZER_H
+#ifndef AGENCY_OPERATION_DESERIALIZER_H
+#define AGENCY_OPERATION_DESERIALIZER_H
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -43,7 +43,7 @@ using operation_parameter_list = std::tuple<T...>;
 using increment_parameter_list = operation_parameter_list<operation_delta_parameter>;
 
 using set_parameter_list =
-    operation_parameter_list<operation_slice_parameter<parameter_name_new, false>>;
+    operation_parameter_list<operation_new_parameter>;
 
 using operation = double;
 
@@ -184,4 +184,4 @@ static inline auto deserialze(arangodb::velocypack::Slice s) {
                                 }}(s);
 }
 
-#endif  // VELOCYPACK_OPERATION_DESERIALIZER_H
+#endif  // AGENCY_OPERATION_DESERIALIZER_H

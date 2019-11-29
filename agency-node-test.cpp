@@ -124,9 +124,23 @@ int main(int argc, char* argv[]) {
   auto fooBar = node::from_buffer_ptr(R"=({"foo": "bar"})="_vpack);
   auto a = node::from_buffer_ptr(
       R"=({"foo": ["a", "b", [null], 1, 2, {"foo": "bar"}, "a", [], "b", [], {"foo": "baz"}, {}, 1, 2]})="_vpack);
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::value_node(1.0)}}}) << std::endl;
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::value_node("a"s)}}}) << std::endl;
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::empty_array()}}}) << std::endl;
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::empty_object()}}}) << std::endl;
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::value_node(1.0)}}})
+            << std::endl;
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::value_node("a"s)}}})
+            << std::endl;
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::empty_array()}}})
+            << std::endl;
+  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::empty_object()}}})
+            << std::endl;
   std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{fooBar}}}) << std::endl;
+
+  std::cout << "fold" << std::endl;
+
+  auto s = node::from_buffer_ptr(R"=({"key":{"hello":"world", "foo":12}})="_vpack);
+
+  bool f1 = s->fold({
+      {immut_list{"key"s, "hello"s},
+       [](node_ptr const& node, bool value) { return value; }},
+  }, true);
+  std::cout << std::boolalpha << f1 << std::endl;
 }
