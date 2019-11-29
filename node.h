@@ -116,6 +116,7 @@ struct node_array final : public node_container<node_array> {
   void into_builder(arangodb::velocypack::Builder& builder) const;
 
   [[nodiscard]] node_array push(node_ptr const&) const;
+  [[nodiscard]] node_array prepend(node_ptr const&) const;
   [[nodiscard]] node_array pop() const;
   [[nodiscard]] node_array shift() const;
 };

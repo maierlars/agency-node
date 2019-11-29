@@ -18,7 +18,7 @@ struct value_operator_no_create_node {};
  * Indicates that the value operator only wants to be called for nodes of the
  * specified type. Otherwise the node should be copied as is.
  */
-struct value_operator_type_restricted {}; // use value_operator_only_for instead
+struct value_operator_type_restricted {};  // use value_operator_only_for instead
 template <typename T>
 struct value_operator_only_for : value_operator_type_restricted {
   using operator_restricted_to = T;
@@ -98,6 +98,21 @@ struct push_value_operator {
   }
 };
 
+struct prepend_value_operator {
+  node_ptr node;
+
+  explicit prepend_value_operator(node_ptr node) : node(std::move(node)) {}
+
+  node_array operator()(node_array const& array) const noexcept {
+    return array.prepend(node);
+  }
+
+  template <typename T>
+  node_array operator()(T const&) const noexcept {
+    return node_array{node};
+  }
+};
+
 struct pop_value_operator : detail::value_operator_no_create_node,
                             detail::value_operator_only_for<node_array> {
   node_value_variant operator()(node_array const& array) const noexcept {
@@ -112,6 +127,7 @@ struct shift_value_operator : detail::value_operator_no_create_node,
   }
 };
 
+using prepend_operator = detail::value_operator_adapter<prepend_value_operator>;
 using push_operator = detail::value_operator_adapter<push_value_operator>;
 using pop_operator = detail::value_operator_adapter<pop_value_operator>;
 using shift_operator = detail::value_operator_adapter<shift_value_operator>;

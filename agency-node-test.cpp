@@ -115,4 +115,9 @@ int main(int argc, char* argv[]) {
       {immut_list{"key"s}, shift_operator{}},
   });
   std::cout << *r2 << std::endl;
+
+  auto r3 = r->modify({
+                          {immut_list{"key"s}, prepend_operator{node::value_node(12.0)}},
+  });
+  std::cout << *r3 << std::endl;
 }

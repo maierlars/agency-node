@@ -183,9 +183,11 @@ node_array node_array::overlay_impl(node_array const& ov) const noexcept {
 
 node_array::node_array(node_ptr const& node) { value.emplace_back(node); }
 
-node_array node_array::push(node_ptr const& node) const {
-  node_array::container_type result{value};
+node_array node_array::prepend(node_ptr const& node) const {
+  node_array::container_type result;
+  result.reserve(value.size() + 1);
   result.emplace_back(node);
+  std::copy(value.begin(), value.end(), std::inserter(result, result.end()));
   return node_array{std::move(result)};
 }
 
@@ -194,7 +196,7 @@ node_array node_array::pop() const {
     return node_array{value};
   }
 
-  return node_array{node_array::container_type{value.begin(), value.end() - 1}};
+  return node_array{node_array::container_type{value.begin(), std::prev(value.end())}};
 }
 
 node_array node_array::shift() const {
@@ -202,7 +204,15 @@ node_array node_array::shift() const {
     return node_array{value};
   }
 
-  return node_array{node_array::container_type{value.begin() + 1, value.end()}};
+  return node_array{node_array::container_type{std::next(value.begin()), value.end()}};
+}
+
+node_array node_array::push(node_ptr const& node) const {
+  node_array::container_type result;
+  result.reserve(value.size() + 1);
+  result.assign(value.begin(), value.end());
+  result.emplace_back(node);
+  return node_array{std::move(result)};
 }
 
 void node::into_builder(Builder& builder) const {
