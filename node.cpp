@@ -3,8 +3,8 @@
 //
 #include <exception>
 
-#include "node.h"
 #include "helper-strings.h"
+#include "node.h"
 
 #include "velocypack/Builder.h"
 #include "velocypack/Iterator.h"
@@ -58,7 +58,7 @@ node_ptr node::from_slice(arangodb::velocypack::Slice s) {
     return node::null_node();
   }
 
-  std::terminate(); // unhandled type
+  std::terminate();  // unhandled type
 }
 
 template <typename P>
@@ -250,6 +250,15 @@ node_array node_array::erase(node_ptr const& node) const {
   return node_array{newContainer};
 }
 
+bool node_array::contains(node_ptr const& needle) const noexcept {
+  if (needle == nullptr) {
+    return false;
+  }
+
+  return std::any_of(value.cbegin(), value.cend(),
+                     [&needle](node_ptr const& node) { return *needle == *node; });
+}
+
 void node::into_builder(Builder& builder) const {
   std::visit([&](auto const& v) { v.into_builder(builder); }, value);
 }
@@ -304,8 +313,7 @@ struct node_set_visitor {
   node_set_visitor(P& path, N& node) : path(path), node(node) {}
 
   template <typename T>
-  auto operator()(node_container<T> const& c) const
-      -> node_ptr {
+  auto operator()(node_container<T> const& c) const -> node_ptr {
     auto& [head, tail] = path;
     // head and tail are _not_ variables but local name bindings and
     // thus can not be captured by a lambda, except like doing so:

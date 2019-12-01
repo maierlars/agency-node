@@ -82,9 +82,9 @@ class node_ptr : private std::shared_ptr<node const> {
   using std::shared_ptr<node const>::operator bool;
 
   explicit node_ptr(std::shared_ptr<node const>&& r) noexcept
-      : std::shared_ptr<node const>(std::move(r)) {};
+      : std::shared_ptr<node const>(std::move(r)){};
   explicit node_ptr(std::shared_ptr<node const> const& r) noexcept
-      : std::shared_ptr<node const>(r) {};
+      : std::shared_ptr<node const>(r){};
 };
 
 bool operator==(node_ptr const& other, std::nullptr_t);
@@ -118,8 +118,8 @@ struct node_container : public node_type<T> {
     return node_type<T>::self().overlay_impl(t.self());
   }
 
-  // TODO those implementations are wrong since std::shared_ptr compare the pointer values
-  // instead of the objects.
+  // TODO those implementations are wrong since std::shared_ptr compare the
+  // pointer values instead of the objects.
   bool operator==(node_container<T> const& other) const noexcept;
   bool operator!=(node_container<T> const& other) const noexcept;
 };
@@ -154,10 +154,11 @@ struct node_array final : public node_container<node_array> {
   [[nodiscard]] node_array prepend(node_ptr const&) const;
   [[nodiscard]] node_array pop() const;
   [[nodiscard]] node_array shift() const;
+  [[nodiscard]] node_array erase(node_ptr const& value) const;
+
+  [[nodiscard]] bool contains(node_ptr const& value) const noexcept;
 
   [[nodiscard]] bool operator==(node_array const&) const noexcept;
-
-  [[nodiscard]] node_array erase(node_ptr const& value) const;
 };
 
 struct node_object final : public node_container<node_object> {
@@ -245,15 +246,16 @@ struct node : public std::enable_shared_from_this<node> {
    */
   node_ptr modify(std::vector<modify_action> const& operations) const;
 
-  template<typename T>
-  using fold_operator = std::function<T(node_ptr const&, T const&)>;
-  template<typename T>
+  template <typename T>
+  using fold_operator = std::function<T(node_ptr const&)>;
+  template <typename T>
   using fold_action = std::pair<path_slice, fold_operator<T>>;
 
-  template<typename T>
-  T fold(std::vector<fold_action<T>> const& actions, T i = T()) const {
+  template <typename T>
+  T fold(std::vector<fold_action<T>> const& actions,
+         std::function<T(T const&, T const&)> f, T i = T()) const {
     for (fold_action<T> const& action : actions) {
-      i = action.second(get(action.first), i);
+      i = f(i, action.second(get(action.first)));
     }
     return i;
   };

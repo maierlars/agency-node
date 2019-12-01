@@ -26,8 +26,7 @@ struct value_operator_only_for : value_operator_type_restricted {
 
 template <typename F>
 struct value_operator_adapter : private F {
-  template <typename... S>
-  explicit value_operator_adapter(S&&... s) : F(std::forward<S>(s)...) {}
+  using F::F;
 
   node_ptr operator()(node_ptr const& node) const {
     if (auto const& actual_node = fix_node(node); actual_node) {
@@ -127,11 +126,23 @@ struct shift_value_operator : detail::value_operator_no_create_node,
   }
 };
 
+struct erase_value_operator : detail::value_operator_no_create_node,
+                              detail::value_operator_only_for<node_array> {
+  node_ptr node;
+
+  explicit erase_value_operator(node_ptr node) : node(std::move(node)) {}
+
+  node_array operator()(node_array const& array) const noexcept {
+    return array.erase(node);
+  }
+};
+
 using prepend_operator = detail::value_operator_adapter<prepend_value_operator>;
 using push_operator = detail::value_operator_adapter<push_value_operator>;
 using pop_operator = detail::value_operator_adapter<pop_value_operator>;
 using shift_operator = detail::value_operator_adapter<shift_value_operator>;
 using increment_operator = detail::value_operator_adapter<increment_value_operator>;
+using erase_operator = detail::value_operator_adapter<erase_value_operator>;
 
 struct remove_operator {
   node_ptr operator()(node_ptr const&) const noexcept { return nullptr; }
@@ -145,17 +156,5 @@ struct set_operator {
   node_ptr const& operator()(node_ptr const&) const { return node; }
 };
 
-struct erase_value_operator : detail::value_operator_no_create_node,
-                              detail::value_operator_only_for<node_array> {
-  node_ptr node;
-
-  explicit erase_value_operator(node_ptr node) : node(std::move(node)) {}
-
-  node_array operator()(node_array const& array) const noexcept {
-    return array.erase(node);
-  }
-};
-
-using erase_operator = detail::value_operator_adapter<erase_value_operator>;
 
 #endif  // AGENCY_NODE_OPERATIONS_H

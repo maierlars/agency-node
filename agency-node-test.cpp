@@ -4,8 +4,10 @@
 
 #include "helper-immut.h"
 
+#include "node-conditions.h"
 #include "node-operations.h"
 #include "node.h"
+#include "store.h"
 
 /*
 template <typename K, typename V>
@@ -34,7 +36,7 @@ std::vector<node::modify_action> modify_action_list_from_slice(arangodb::velocyp
 }*/
 using namespace std::string_literals;
 
-int main(int argc, char* argv[]) {
+void node_test() {
   auto n = node::from_buffer_ptr(R"=({"key":{"hello":"world", "foo":12}})="_vpack);
 
   std::cout << *n << std::endl;
@@ -138,9 +140,54 @@ int main(int argc, char* argv[]) {
 
   auto s = node::from_buffer_ptr(R"=({"key":{"hello":"world", "foo":12}})="_vpack);
 
-  bool f1 = s->fold({
-      {immut_list{"key"s, "hello"s},
-       [](node_ptr const& node, bool value) { return value; }},
-  }, true);
+  bool f1 = s->fold<bool>(
+      {
+          {immut_list{"key"s, "hello"s}, equal_condition{node::value_node("world"s)}},
+          {immut_list{"key"s, "foo"s}, equal_condition{node::value_node(12.0)}},
+      },
+      std::logical_and{}, true);
   std::cout << std::boolalpha << f1 << std::endl;
+
+  bool f2 = s->fold<bool>(
+      {
+          {immut_list{"key"s, "hello"s}, not_equal_condition{node::value_node("worl2"s)}},
+          {immut_list{"key"s, "foobaz"s}, not_equal_condition{node::value_node(12.0)}},
+      },
+      std::logical_and{}, true);
+  std::cout << std::boolalpha << f2 << std::endl;
+
+  bool f5 = r->fold<bool>(
+      {
+          {immut_list{"key-non-existing"s}, in_condition{node::value_node(5.0)}},
+      },
+      std::logical_and{}, true);
+  std::cout << std::boolalpha << f5 << std::endl;
+}
+
+void store_test() {
+  store store{node::empty_object()};
+  std::cout << store << std::endl;
+
+  store.write({
+      {immut_list{"arango"s, "Plan"s, "Database"s, "myDB"s},
+       set_operator{node::from_buffer_ptr(R"=({"name":"myDB", "replFact":2, "isBuilding":true})="_vpack)}},
+      {immut_list{"arango"s, "Plan"s, "Version"s}, set_operator{node::value_node(1.0)}},
+  });
+  std::cout << store << std::endl;
+
+  store.transact(
+      {
+          {{"arango"s, "Plan"s, "Database"s, "myDB"s, "isBuilding"s},
+           equal_condition{node::value_node(true)}},
+      },
+      {
+          {{"arango"s, "Plan"s, "Database"s, "myDB"s}, remove_operator{}},
+          {{"arango"s, "Plan"s, "Version"s}, increment_operator{}},
+      });
+  std::cout << store << std::endl;
+}
+
+int main(int argc, char* argv[]) {
+  // node_test();
+  store_test();
 }
