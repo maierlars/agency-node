@@ -9,6 +9,9 @@
 #include "node.h"
 #include "store.h"
 
+#include "deserializer.h"
+#include "operation-deserializer.h"
+
 /*
 template <typename K, typename V>
 using immut_map = std::map<K, V>;
@@ -46,16 +49,14 @@ void node_test() {
 
   std::cout << *n->overlay(m) << std::endl;
 
-  auto p = n->set(immut_list{"key"s, "world"s}, node::value_node(12.0));
+  auto p = n->set({"key"s, "world"s}, node::value_node(12.0));
 
   std::cout << *p << std::endl;
 
   auto n1 = n->modify({
-      {immut_list{"key"s, "hello"s},
-       [](node_ptr const&) { return node::value_node(7.0); }},
-      {immut_list{"key"s, "foo"s},
-       [](node_ptr const&) { return node::value_node("42"s); }},
-      {immut_list{"key"s, "foox"s, "bar"s},
+      {{"key"s, "hello"s}, [](node_ptr const&) { return node::value_node(7.0); }},
+      {{"key"s, "foo"s}, [](node_ptr const&) { return node::value_node("42"s); }},
+      {{"key"s, "foox"s, "bar"s},
        [](node_ptr const&) { return node::value_node(false); }},
   });
 
@@ -63,17 +64,17 @@ void node_test() {
   std::cout << *n1 << std::endl;
 
   auto m1 = m->modify({
-      {immut_list{"foo"s, "0"s, "bar"s},
+      {{"foo"s, "0"s, "bar"s},
        [](node_ptr const&) { return node::value_node(false); }},
   });
   std::cout << "m1 " << *m1 << std::endl;
   auto m2 = m->modify({
-      {immut_list{"foo"s, "x"s, "bar"s},
+      {{"foo"s, "x"s, "bar"s},
        [](node_ptr const&) { return node::value_node(false); }},
   });
   std::cout << "m2 " << *m2 << std::endl;
   auto m3 = m->modify({
-      {immut_list{"foo"s, "3"s, "bar"s},
+      {{"foo"s, "3"s, "bar"s},
        [](node_ptr const&) { return node::value_node(false); }},
   });
   std::cout << "m3 " << *m3 << std::endl;
@@ -81,24 +82,24 @@ void node_test() {
   auto q = node::from_buffer_ptr(R"=({"foo":12, "bar":"hello"})="_vpack);
 
   auto q1 = q->modify({
-      {immut_list{"foo"s}, increment_operator{15.0}},
-      {immut_list{"bar"s}, increment_operator{}},
+      {{"foo"s}, increment_operator{15.0}},
+      {{"bar"s}, increment_operator{}},
   });
   std::cout << *q1 << std::endl;
 
   auto q2 = q->modify({
-      {immut_list{"foo"s}, remove_operator{}},
-      {immut_list{"bar"s}, increment_operator{}},
+      {{"foo"s}, remove_operator{}},
+      {{"bar"s}, increment_operator{}},
   });
   std::cout << *q2 << std::endl;
 
   auto q3 = q->modify({
-      {immut_list{"foo"s}, push_operator{n}},
+      {{"foo"s}, push_operator{n}},
   });
   std::cout << *q3 << std::endl;
 
   auto q4 = q->modify({
-      {immut_list{"baz"s}, push_operator{n}},
+      {{"baz"s}, push_operator{n}},
   });
   std::cout << *q4 << std::endl;
 
@@ -108,18 +109,18 @@ void node_test() {
   std::cout << *r << std::endl;
 
   auto r1 = r->modify({
-      {immut_list{"baz"s}, pop_operator{}},  // pop on baz should not create a node_null
-      {immut_list{"key"s}, pop_operator{}},
+      {{"baz"s}, pop_operator{}},  // pop on baz should not create a node_null
+      {{"key"s}, pop_operator{}},
   });
   std::cout << *r1 << std::endl;
 
   auto r2 = r->modify({
-      {immut_list{"key"s}, shift_operator{}},
+      {{"key"s}, shift_operator{}},
   });
   std::cout << *r2 << std::endl;
 
   auto r3 = r->modify({
-      {immut_list{"key"s}, prepend_operator{node::value_node(12.0)}},
+      {{"key"s}, prepend_operator{node::value_node(12.0)}},
   });
   std::cout << *r3 << std::endl;
 
@@ -142,23 +143,23 @@ void node_test() {
 
   bool f1 = s->fold<bool>(
       {
-          {immut_list{"key"s, "hello"s}, equal_condition{node::value_node("world"s)}},
-          {immut_list{"key"s, "foo"s}, equal_condition{node::value_node(12.0)}},
+          {{"key"s, "hello"s}, equal_condition{node::value_node("world"s)}},
+          {{"key"s, "foo"s}, equal_condition{node::value_node(12.0)}},
       },
       std::logical_and{}, true);
   std::cout << std::boolalpha << f1 << std::endl;
 
   bool f2 = s->fold<bool>(
       {
-          {immut_list{"key"s, "hello"s}, not_equal_condition{node::value_node("worl2"s)}},
-          {immut_list{"key"s, "foobaz"s}, not_equal_condition{node::value_node(12.0)}},
+          {{"key"s, "hello"s}, not_equal_condition{node::value_node("worl2"s)}},
+          {{"key"s, "foobaz"s}, not_equal_condition{node::value_node(12.0)}},
       },
       std::logical_and{}, true);
   std::cout << std::boolalpha << f2 << std::endl;
 
   bool f5 = r->fold<bool>(
       {
-          {immut_list{"key-non-existing"s}, in_condition{node::value_node(5.0)}},
+          {{"key-non-existing"s}, in_condition{node::value_node(5.0)}},
       },
       std::logical_and{}, true);
   std::cout << std::boolalpha << f5 << std::endl;
@@ -169,9 +170,9 @@ void store_test() {
   std::cout << store << std::endl;
 
   store.write({
-      {immut_list{"arango"s, "Plan"s, "Database"s, "myDB"s},
+      {{"arango"s, "Plan"s, "Database"s, "myDB"s},
        set_operator{node::from_buffer_ptr(R"=({"name":"myDB", "replFact":2, "isBuilding":true})="_vpack)}},
-      {immut_list{"arango"s, "Plan"s, "Version"s}, set_operator{node::value_node(1.0)}},
+      {{"arango"s, "Plan"s, "Version"s}, set_operator{node::value_node(1.0)}},
   });
   std::cout << store << std::endl;
 
@@ -187,7 +188,35 @@ void store_test() {
   std::cout << store << std::endl;
 }
 
+std::ostream& operator<<(std::ostream &os, deserialize_error const& err) {
+  os << "deserialization error: " << err.what();
+  return os;
+}
+
+std::ostream& operator<<(std::ostream &os, std::function<node_ptr(const node_ptr&)> const&) {
+  os << "std::function";
+  return os;
+}
+
+template<typename T, typename E>
+std::ostream& operator<<(std::ostream &os, result<T, E> const& r) {
+  r.visit(visitor{
+    [&os](T const& v) { os << "Value: " << v; },
+    [&os](E const& e) { os << "Error: " << e; }
+  });
+  return os;
+}
+
+void deserialize_test() {
+  auto op = R"=({"op":"set", "new":{"hello":"world"}})="_vpack;
+
+  auto result = deserialize_with<agency_operation_deserialzer>(Slice(op.data()));
+  std::cout << result << std::endl;
+}
+
 int main(int argc, char* argv[]) {
   // node_test();
-  store_test();
+  //store_test();
+  deserialize_test();
+  return EXIT_SUCCESS;
 }

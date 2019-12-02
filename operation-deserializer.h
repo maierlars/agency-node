@@ -11,177 +11,61 @@
 #include <variant>
 #include <vector>
 
+#include "node-operations.h"
 #include "velocypack/Buffer.h"
 #include "velocypack/Builder.h"
 #include "velocypack/Iterator.h"
 #include "velocypack/Parser.h"
 #include "velocypack/Slice.h"
 
-template <char const N[], typename T, bool required>
-struct operation_parameter {
-  using value_type = T;
-  constexpr static bool is_required = required;
-  constexpr static auto name = N;
-};
-
-template <char const N[], bool required>
-struct operation_slice_parameter {
-  using value_type = arangodb::velocypack::Slice;
-  constexpr static bool is_required = required;
-  constexpr static auto name = N;
-};
+#include "deserializer.h"
+#include "node-operations.h"
 
 constexpr const char parameter_name_delta[] = "delta";
 constexpr const char parameter_name_new[] = "new";
+constexpr const char parameter_name_op[] = "op";
+constexpr const char parameter_name_ttl[] = "ttl";
 
-using operation_delta_parameter = operation_parameter<parameter_name_delta, double, false>;
-using operation_new_parameter = operation_parameter<parameter_name_new, double, true>;
+constexpr const char parameter_op_name_set[] = "set";
+constexpr const char parameter_op_name_increment[] = "increment";
+constexpr const char parameter_op_name_decrement[] = "decrement";
+constexpr const char parameter_op_name_remove[] = "remove";
 
-template <typename... T>
-using operation_parameter_list = std::tuple<T...>;
+using operation_delta_parameter =
+    factory_simple_parameter<parameter_name_delta, double, false>;
+using operation_ttl_parameter =
+    factory_simple_parameter<parameter_name_ttl, double, false>;
+using operation_new_parameter = factory_slice_parameter<parameter_name_new, true>;
 
-using increment_parameter_list = operation_parameter_list<operation_delta_parameter>;
+using increment_parameter_list = parameter_list<operation_delta_parameter>;
 
-using set_parameter_list =
-    operation_parameter_list<operation_new_parameter>;
+using operation_op_set =
+    expected_value<parameter_name_op, string_value<parameter_op_name_set>>;
 
-using operation = double;
+struct increment_operation_factory {
+  using plan = increment_parameter_list;
+  using constructed_type = increment_operator;
 
-namespace detail {
-
-template <typename>
-struct parameter_reader;
-
-template <>
-struct parameter_reader<double> {
-  std::optional<double> operator()(arangodb::velocypack::Slice s) const noexcept {
-    if (s.isDouble()) {
-      return s.getNumber<double>();
-    }
-    return std::nullopt;
+  template <typename... T>
+  constructed_type operator()(double delta) const {
+    return increment_operator{delta};
   }
 };
 
-template <typename>
-struct parameter_getter;
+using agency_operation_plan =
+    field_dependent<parameter_name_op, value_deserializer_pair<string_value<parameter_op_name_set>, deserializer_from_factory<increment_operation_factory>>>;
 
-template <char const N[], typename T, bool req>
-struct parameter_getter<operation_parameter<N, T, req>> {
-  constexpr static bool required = req;
+struct agency_operation_factory {
+  using plan = agency_operation_plan;
+  using constructed_type = std::function<node_ptr(node_ptr const&)>;
 
-  std::optional<T> operator()(arangodb::velocypack::Slice s) const noexcept {
-    if (s.hasKey(N)) {
-      return parameter_reader<T>{}(s.get(N));
-    }
-    return std::nullopt;
+  template <typename... T>
+  constructed_type operator()(std::variant<T...> const& v) const {
+    return std::visit(
+        [](auto const& v) -> constructed_type { return std::function{v}; }, v);
   }
 };
 
-template <typename>
-struct operation_applier;
-
-template <char const N[], typename T, bool required>
-struct operation_applier<operation_parameter<N, T, required>> {
-  using op_type = operation_parameter<N, T, required>;
-  constexpr static bool is_required = required;
-
-  [[nodiscard]] std::optional<T> apply(arangodb::velocypack::Slice s) const noexcept {
-    return parameter_getter<op_type>{}(s);
-  }
-};
-
-template <typename, typename, typename>
-struct operation_deserializer_exec;
-
-template <typename F, typename T, typename... Ts, typename... V>
-struct operation_deserializer_exec<F, operation_parameter_list<T, Ts...>, std::tuple<V...>> {
-  explicit operation_deserializer_exec(F const& f) noexcept : f(f) {}
-
-  [[nodiscard]] auto expand(arangodb::velocypack::Slice s, std::tuple<V...> v) const noexcept {
-    /*
-     *  Expand the current operation
-     */
-
-    auto const& value = operation_applier<T>{}.apply(s);
-
-    if (value) {
-      /*
-       *  Forward to the next layer.
-       */
-
-      auto result =
-          operation_deserializer_exec<F, operation_parameter_list<Ts...>,
-                                      std::tuple<V..., decltype(value.value())>>{f}
-              .expand(s, std::tuple_cat(v, std::make_tuple(value.value())));
-
-      /*
-       * If the current operation could not be expanded, exec.
-       */
-      if (result) {
-        return result;
-      }
-    }
-
-    if constexpr (operation_applier<T>::is_required) {
-      // abort if the expansion was required
-      return std::nullopt;
-    } else {
-      return exec(s, v);
-    }
-  }
-
-  [[nodiscard]] auto exec(arangodb::velocypack::Slice s, std::tuple<V...> v) const noexcept
-      -> std::optional<decltype(std::apply(std::declval<F>(), v))> {
-    if (s.length() != sizeof...(V)) {
-      return std::nullopt;
-    }
-
-    return std::apply(f, v);
-  }
-
- private:
-  F const& f;
-};
-
-template <typename F, typename... V>
-struct operation_deserializer_exec<F, operation_parameter_list<>, std::tuple<V...>> {
-  explicit operation_deserializer_exec(F const& f) noexcept : f(f) {}
-
-  [[nodiscard]] auto expand(arangodb::velocypack::Slice s, std::tuple<V...> v) const noexcept {
-    return exec(s, v);
-  }
-
-  [[nodiscard]] auto exec(arangodb::velocypack::Slice s, std::tuple<V...> v) const noexcept
-      -> std::optional<decltype(std::apply(std::declval<F>(), v))> {
-    if (s.length() != sizeof...(V)) {
-      return std::nullopt;
-    }
-
-    return {std::apply(f, v)};
-  }
-
- private:
-  F const& f;
-};
-
-}  // namespace detail
-
-template <typename P, typename F>
-struct operation_deserializer {
-  operation_deserializer(P&&, F&& f) : f(std::forward<F>(f)) {}
-
-  auto operator()(arangodb::velocypack::Slice s) const noexcept {
-    return detail::operation_deserializer_exec<F, P, std::tuple<>>{f}.expand(s, std::make_tuple<>());
-  }
-
- private:
-  F f;
-};
-
-static inline auto deserialze(arangodb::velocypack::Slice s) {
-  return operation_deserializer{increment_parameter_list{}, [](double delta = 1.0) {
-                                  return [delta](double x) { return x + delta; };
-                                }}(s);
-}
+using agency_operation_deserialzer = deserializer_from_factory<agency_operation_factory>;
 
 #endif  // AGENCY_OPERATION_DESERIALIZER_H
