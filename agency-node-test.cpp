@@ -207,8 +207,36 @@ std::ostream& operator<<(std::ostream &os, result<T, E> const& r) {
   return os;
 }
 
+template<typename K, typename V>
+static std::ostream& operator<<(std::ostream& os, vector_map<K, V> const& v) {
+  os << "{";
+  for(auto const& item : v) {
+    os << item.first << ':' << item.second;
+  }
+  os << '}';
+  return os;
+}
+
+namespace detail {
+template <typename... Ts, std::size_t... Is>
+static std::ostream& print_tuple(std::ostream& os, std::tuple<Ts...> const& t,
+                                 std::index_sequence<Is...>) {
+  (os << ... << std::get<Is>(t));
+  return os;
+}
+}
+
+template<typename... Ts>
+static std::ostream& operator<<(std::ostream& os, std::tuple<Ts...> const& t) {
+  os << '[';
+  detail::print_tuple(os, t, std::index_sequence_for<Ts...>{});
+  os << ']';
+  return os;
+}
+
+
 void deserialize_test() {
-  auto op = R"=({"op":"set", "new":{"hello":"world"}})="_vpack;
+  auto op = R"=([{"arango/Plan/Collection": {"op":"set", "new":{"hello":"world"}}}])="_vpack;
 
   auto result = deserialize_with<agency_transaction_deserializer>(Slice(op.data()));
   std::cout << result << std::endl;
