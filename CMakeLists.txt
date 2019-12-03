@@ -15,5 +15,6 @@ target_link_libraries(test-tree velocypack)
 
 target_compile_options(test-tree PRIVATE "-fsanitize=address")
 target_compile_options(test-tree PRIVATE "-fsanitize=undefined")
+target_compile_options(test-tree PRIVATE "-ftemplate-backtrace-limit=0")
 
 target_link_libraries(test-tree ubsan)

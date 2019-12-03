@@ -65,7 +65,7 @@ struct set_operation_factory {
 };
 
 struct agency_operation_factory {
-  using plan = field_dependent<
+  using plan = field_value_dependent<
       parameter_name_op,
       value_deserializer_pair<
           string_value<parameter_op_name_increment>,
@@ -83,15 +83,82 @@ struct agency_operation_factory {
 };
 using agency_operation_deserialzer = deserializer_from_factory<agency_operation_factory>;
 
+
+constexpr const char parameter_name_old[] = "old";
+constexpr const char parameter_name_old_not[] = "oldNot";
+constexpr const char parameter_name_old_empty[] = "oldEmpty";
+
+
+using precondition_old_parameter = factory_slice_parameter<parameter_name_old, true>;
+using precondition_old_not_parameter = factory_slice_parameter<parameter_name_old_not, true>;
+using precondition_old_empty_parameter = factory_simple_parameter<parameter_name_old_empty, bool, true>;
+
+template<typename C, typename P>
+struct slice_condition_factory {
+  using plan = P;
+  using constructed_type = C;
+
+  constructed_type operator()(arangodb::velocypack::Slice s) const {
+    return constructed_type{node::from_slice(s)};
+  }
+};
+
+using equal_condition_factory = slice_condition_factory<equal_condition, parameter_list<precondition_old_parameter>>;
+using not_equal_condition_factory = slice_condition_factory<not_equal_condition, parameter_list<precondition_old_not_parameter>>;
+
+struct old_empty_condition_factory {
+  using plan = parameter_list<precondition_old_empty_parameter>;
+  using constructed_type = is_empty_condition;
+
+  constructed_type operator()(bool inverted) const {
+    return constructed_type{inverted};
+  }
+};
+
+struct agency_precondition_factory {
+  using plan = field_name_dependent<
+          field_name_deserializer_pair<parameter_name_old, deserializer_from_factory<equal_condition_factory>>,
+          field_name_deserializer_pair<parameter_name_old_not, deserializer_from_factory<not_equal_condition_factory>>,
+          field_name_deserializer_pair<parameter_name_old_empty, deserializer_from_factory<old_empty_condition_factory>>
+      >;
+
+  using constructed_type = std::function<bool(node_ptr const&)>;
+
+  template <typename... T>
+  constructed_type operator()(std::variant<T...> const& v) const {
+    return std::visit(
+        [](auto const& v) -> constructed_type { return std::function{v}; }, v);
+  }
+};
+
+using agency_precondition_deserialzer = deserializer_from_factory<agency_precondition_factory>;
+
+
 template <typename K, typename V>
 using vector_map = std::vector<std::pair<K, V>>;
 
+using operation_list = vector_map<std::string_view, node::modify_operation>;
+using precondition_list = vector_map<std::string_view, node::fold_operator<bool>>;
+
+struct agency_transaction {
+  operation_list operations;
+  precondition_list preconditions;
+  std::string client_id;
+};
+
 
 struct agency_transaction_factory {
-  using plan = fixed_order_deserializer<map_deserializer<agency_operation_deserialzer, vector_map>>;
-  using constructed_type = typename plan ::constructed_type;
+  using operation_deserializer = map_deserializer<agency_operation_deserialzer, vector_map>;
+  using precondition_deserializer = map_deserializer<agency_precondition_deserialzer, vector_map>;
 
-  constructed_type operator()(constructed_type r) const { return r; }
+  using plan = fixed_order_deserializer<
+      operation_deserializer, precondition_deserializer, value_deserializer<std::string>>;
+  using constructed_type = agency_transaction;
+
+  constructed_type operator()(const std::tuple<operation_deserializer::constructed_type, precondition_deserializer::constructed_type, std::string>& array) const {
+    auto &[op_list, prec_list, client_id] = array;
+    return constructed_type{op_list, prec_list, client_id};
+  }
 };
 using agency_transaction_deserializer = deserializer_from_factory<agency_transaction_factory>;
 

@@ -129,6 +129,16 @@ using equal_condition = detail::condition_helper<value_equals_condition>;
 using not_equal_condition = detail::not_condition_adapter<equal_condition>;
 using is_array_condition = detail::condition_helper<value_is_array_condition>;
 
+struct is_empty_condition {
+  bool inverted;
+  explicit is_empty_condition (bool inverted) : inverted(inverted) {}
+
+  bool operator()(node_ptr const& node) const noexcept {
+    return (node == nullptr) != inverted;
+  }
+};
+
+
 template <typename F>
 struct fold_adapter_and : F {
   using F::F;

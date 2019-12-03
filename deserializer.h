@@ -23,6 +23,8 @@ template <typename T, typename E>
 struct result {
   std::variant<T, E> value;
 
+  static_assert(!std::is_void_v<T> && !std::is_void_v<E>);
+
   template <typename S>
   explicit result(result<S, E> const& r) {
     if (r) {
@@ -162,6 +164,30 @@ struct value_reader<double> {
   }
 };
 
+template <>
+struct value_reader<std::string> {
+  using result_type = result<std::string, deserialize_error>;
+  static result_type read(Slice s) {
+    if (s.isString()) {
+      return result_type{s.copyString()};
+    }
+
+    return result_type{deserialize_error{"value is not a string"}};
+  }
+};
+
+template <>
+struct value_reader<bool> {
+  using result_type = result<bool, deserialize_error>;
+  static result_type read(Slice s) {
+    if (s.isBool()) {
+      return result_type{s.getBool()};
+    }
+
+    return result_type{deserialize_error{"value is not a bool"}};
+  }
+};
+
 template <typename V, typename S>
 struct value_deserializer_pair {
   using value = V;
@@ -169,10 +195,21 @@ struct value_deserializer_pair {
 };
 
 template <const char N[], typename... VSs>
-struct field_dependent {
+struct field_value_dependent {
   constexpr static auto name = N;
 
   using constructed_type = std::variant<typename VSs::deserializer::constructed_type...>;
+};
+
+template <const char N[], typename D>
+struct field_name_deserializer_pair {
+  constexpr static auto name = N;
+  using deserializer = D;
+};
+
+template <typename... NDs>
+struct field_name_dependent {
+  using constructed_type = std::variant<typename NDs::deserializer::constructed_type...>;
 };
 
 template <typename... T>
@@ -202,6 +239,20 @@ template <typename... Ds>
 struct fixed_order_deserializer {
   using plan = fixed_order_deserializer<Ds...>;
   using constructed_type = std::tuple<typename Ds::constructed_type...>;
+  using factory = identity_factory<constructed_type>;
+};
+
+template <typename T>
+struct value_deserializer {
+  using plan = value_deserializer<T>;
+  using constructed_type = T;
+  using factory = identity_factory<T>;
+};
+
+template <typename... Ds>
+struct try_alternatives_deserializer {
+  using plan = try_alternatives_deserializer<Ds...>;
+  using constructed_type = std::variant<typename Ds::constructed_type...>;
   using factory = identity_factory<constructed_type>;
 };
 
@@ -242,8 +293,14 @@ struct plan_result_tuple<parameter_list<T...>> {
 };
 
 template <const char N[], typename... VSs>
-struct plan_result_tuple<field_dependent<N, VSs...>> {
-  using variant = typename field_dependent<N, VSs...>::constructed_type;
+struct plan_result_tuple<field_value_dependent<N, VSs...>> {
+  using variant = typename field_value_dependent<N, VSs...>::constructed_type;
+  using type = std::tuple<variant>;
+};
+
+template <typename... NDs>
+struct plan_result_tuple<field_name_dependent<NDs...>> {
+  using variant = typename field_name_dependent<NDs...>::constructed_type;
   using type = std::tuple<variant>;
 };
 
@@ -425,10 +482,10 @@ template <typename D>
 auto deserialize_with(arangodb::velocypack::Slice slice);
 
 template <typename...>
-struct field_dependent_executor;
+struct field_value_dependent_executor;
 
 template <typename R, typename V, typename D, typename... Vs, typename... Ds>
-struct field_dependent_executor<R, value_deserializer_pair<V, D>, value_deserializer_pair<Vs, Ds>...> {
+struct field_value_dependent_executor<R, value_deserializer_pair<V, D>, value_deserializer_pair<Vs, Ds>...> {
   using unpack_result = result<R, deserialize_error>;
   static auto unpack(arangodb::velocypack::Slice s, arangodb::velocypack::Slice v)
       -> unpack_result {
@@ -443,12 +500,12 @@ struct field_dependent_executor<R, value_deserializer_pair<V, D>, value_deserial
                   }});
     }
 
-    return field_dependent_executor<R, value_deserializer_pair<Vs, Ds>...>::unpack(s, v);
+    return field_value_dependent_executor<R, value_deserializer_pair<Vs, Ds>...>::unpack(s, v);
   }
 };
 
 template <typename R>
-struct field_dependent_executor<R> {
+struct field_value_dependent_executor<R> {
   using unpack_result = result<R, deserialize_error>;
   static auto unpack(arangodb::velocypack::Slice s, arangodb::velocypack::Slice v)
       -> unpack_result {
@@ -458,9 +515,10 @@ struct field_dependent_executor<R> {
 };
 
 template <const char N[], typename... VSs>
-struct deserialize_plan_executor<field_dependent<N, VSs...>> {
-  using unpack_tuple_type = typename plan_result_tuple<field_dependent<N, VSs...>>::type;
-  using variant_type = typename plan_result_tuple<field_dependent<N, VSs...>>::variant;
+struct deserialize_plan_executor<field_value_dependent<N, VSs...>> {
+  using unpack_tuple_type =
+      typename plan_result_tuple<field_value_dependent<N, VSs...>>::type;
+  using variant_type = typename plan_result_tuple<field_value_dependent<N, VSs...>>::variant;
   using unpack_result = result<unpack_tuple_type, deserialize_error>;
   static auto unpack(arangodb::velocypack::Slice s) -> unpack_result {
     /*
@@ -474,7 +532,7 @@ struct deserialize_plan_executor<field_dependent<N, VSs...>> {
       return unpack_result{deserialize_error{"field `"s + N + "` not found"}};
     }
 
-    return field_dependent_executor<variant_type, VSs...>::unpack(s, value_slice)
+    return field_value_dependent_executor<variant_type, VSs...>::unpack(s, value_slice)
         .visit(visitor{[](variant_type const& v) {
                          return unpack_result{std::make_tuple(v)};
                        },
@@ -486,13 +544,60 @@ struct deserialize_plan_executor<field_dependent<N, VSs...>> {
 };
 
 template <const char N[]>
-struct deserialize_plan_executor<field_dependent<N>> {
+struct deserialize_plan_executor<field_value_dependent<N>> {
   static auto unpack(arangodb::velocypack::Slice s) {
     /*
      * No matching type was found, we can not deserialize.
      */
     return result<unit_type, deserialize_error>{
         deserialize_error{"empty dependent field list"}};
+  }
+};
+
+template <typename...>
+struct field_name_dependent_executor;
+
+template <typename R, const char N[], typename D, const char... Ns[], typename... Ds>
+struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, field_name_deserializer_pair<Ns, Ds>...> {
+  using unpack_result = result<R, deserialize_error>;
+  static auto unpack(arangodb::velocypack::Slice s) -> unpack_result {
+    using namespace std::string_literals;
+
+    if (s.hasKey(N)) {
+      return deserialize_with<D>(s).visit(
+          visitor{[](auto const& v) { return unpack_result{R{v}}; },
+                  [](deserialize_error const& e) {
+                    return unpack_result{
+                        e.wrap("during dependent parse (found field `"s + N + "`)")};
+                  }});
+    }
+
+    return field_name_dependent_executor<R, field_name_deserializer_pair<Ns, Ds>...>::unpack(s);
+  }
+};
+
+template <typename R>
+struct field_name_dependent_executor<R> {
+  using unpack_result = result<R, deserialize_error>;
+  static auto unpack(arangodb::velocypack::Slice s) -> unpack_result {
+    using namespace std::string_literals;
+    return unpack_result{deserialize_error{"no known field"}};
+  }
+};
+
+template <typename... NDs>
+struct deserialize_plan_executor<field_name_dependent<NDs...>> {
+  using value_type = typename field_name_dependent<NDs...>::constructed_type;
+  using variant_type = typename plan_result_tuple<field_name_dependent<NDs...>>::variant;
+  using tuple_type = std::tuple<value_type>;
+  using result_type = result<tuple_type, deserialize_error>;
+
+  static auto unpack(arangodb::velocypack::Slice s) -> result_type {
+    return field_name_dependent_executor<variant_type, NDs...>::unpack(s).visit(
+        visitor{[](variant_type const& v) {
+                  return result_type{std::make_tuple(v)};
+                },
+                [](deserialize_error const& e) { return result_type{e}; }});
   }
 };
 
@@ -537,7 +642,9 @@ struct fixed_order_deserializer_executor_visitor {
   }
 
   bool operator()(E e) {
-    error_store = std::move(e);
+    using namespace std::string_literals;
+    error_store =
+        std::move(e).wrap("in fixed order array at position "s + std::to_string(I));
     return false;
   }
 };
@@ -545,7 +652,7 @@ struct fixed_order_deserializer_executor_visitor {
 template <typename... Ds>
 struct deserialize_plan_executor<fixed_order_deserializer<Ds...>> {
   using value_type = typename fixed_order_deserializer<Ds...>::constructed_type;
-  using tuple_type = value_type;
+  using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
   constexpr static auto expected_array_length = sizeof...(Ds);
@@ -569,13 +676,13 @@ struct deserialize_plan_executor<fixed_order_deserializer<Ds...>> {
   template <std::size_t... I>
   static auto unpack_internal(arangodb::velocypack::Slice s, std::index_sequence<I...>)
       -> result_type {
-    tuple_type values;
+    value_type values;
     deserialize_error error;
 
     bool result =
         (deserialize_with<Ds>(s.at(I)).visit(
-             fixed_order_deserializer_executor_visitor<I, typename Ds::constructed_type, deserialize_error>{
-                 std::get<I>(values), error}) &&
+             fixed_order_deserializer_executor_visitor<I, typename Ds::constructed_type, deserialize_error>(
+                 std::get<I>(values), error)) &&
          ...);
 
     if (result) {
@@ -583,6 +690,94 @@ struct deserialize_plan_executor<fixed_order_deserializer<Ds...>> {
     }
 
     return result_type{error};
+  }
+};
+
+template <typename T>
+struct deserialize_plan_executor<value_deserializer<T>> {
+  using value_type = T;
+  using tuple_type = std::tuple<value_type>;
+  using result_type = result<tuple_type, deserialize_error>;
+  static auto unpack(arangodb::velocypack::Slice s) -> result_type {
+    return value_reader<T>::read(s).map(
+        [](T t) { return std::make_tuple(std::move(t)); });
+  }
+};
+
+template <std::size_t I, typename T, typename E>
+struct try_alternatives_deserializer_executor_visitor {
+  std::optional<T>& value_store;
+  E& error_store;
+  explicit try_alternatives_deserializer_executor_visitor(std::optional<T>& value_store,
+                                                          E& error_store)
+      : value_store(value_store), error_store(error_store) {}
+
+  bool operator()(T t) {
+    value_store = std::move(t);
+    return true;
+  }
+
+  bool operator()(E e) {
+    using namespace std::string_literals;
+    error_store = std::move(e);
+    return false;
+  }
+};
+
+template <typename... Ds>
+struct deserialize_plan_executor<try_alternatives_deserializer<Ds...>> {
+  using value_type = typename try_alternatives_deserializer<Ds...>::constructed_type;
+  using tuple_type = std::tuple<value_type>;
+  using result_type = result<tuple_type, deserialize_error>;
+  static auto unpack(arangodb::velocypack::Slice s) -> result_type {
+    /*
+     * Try one alternative after the other. Take the first that does not fail. If all fail, fail.
+     */
+    return unpack_internal(s, std::index_sequence_for<Ds...>{});
+  }
+
+ private:
+  constexpr auto static number_of_alternatives = sizeof...(Ds);
+
+  template <std::size_t... Is>
+  static auto unpack_internal(arangodb::velocypack::Slice s, std::index_sequence<Is...>)
+      -> result_type {
+    std::optional<value_type> result_variant;
+    std::array<deserialize_error, number_of_alternatives> errors;
+
+    bool result =
+        (deserialize_with<Ds>(s).visit(
+             try_alternatives_deserializer_executor_visitor<Is, value_type, deserialize_error>{
+                 result_variant, std::get<Is>(errors)}) ||
+         ...);
+
+    if (result) {
+      return result_type{result_variant.value()};
+    } else {
+      /*
+       * Join all the errors.
+       */
+      using namespace std::string_literals;
+
+      return result_type{deserialize_error{
+          "no matching alternative found, their failures in order are: ["s +
+          join(errors) + ']'}};
+    }
+  }
+  template <typename T>
+  static std::string join(T const& t) {
+    using namespace std::string_literals;
+    std::string ss;
+    bool first = true;
+    for (auto const& k : t) {
+      if (!first) {
+        ss += ", ";
+      }
+      first = false;
+      ss += k.what();
+    }
+
+    return ss;
   }
 };
 
