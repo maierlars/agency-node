@@ -210,7 +210,7 @@ std::ostream& operator<<(std::ostream &os, result<T, E> const& r) {
 void deserialize_test() {
   auto op = R"=({"op":"set", "new":{"hello":"world"}})="_vpack;
 
-  auto result = deserialize_with<agency_operation_deserialzer>(Slice(op.data()));
+  auto result = deserialize_with<agency_transaction_deserializer>(Slice(op.data()));
   std::cout << result << std::endl;
 }
 
