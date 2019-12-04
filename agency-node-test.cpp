@@ -9,7 +9,7 @@
 #include "node.h"
 #include "store.h"
 
-#include "deserializer.h"
+#include "deserialize/deserializer.h"
 #include "operation-deserializer.h"
 
 /*
@@ -234,7 +234,7 @@ static std::ostream& print_tuple(std::ostream& os, std::tuple<Ts...> const& t,
 template<typename... Ts>
 static std::ostream& operator<<(std::ostream& os, std::tuple<Ts...> const& t) {
   os << '[';
-  detail::print_tuple(os, t, std::index_sequence_for<Ts...>{});
+  ::detail::print_tuple(os, t, std::index_sequence_for<Ts...>{});
   os << ']';
   return os;
 }
@@ -247,7 +247,7 @@ std::ostream& operator<<(std::ostream &os, agency_transaction const& at) {
 void deserialize_test() {
   auto op = R"=([{"arango/Plan/Collection": {"op":"set", "new":{"hello":"world"}}}, {"arango/Plan/Collection":{"oldEmpty":true}}, "hello"])="_vpack;
 
-  auto result = deserialize_with<agency_transaction_deserializer>(Slice(op.data()));
+  auto result = deserializer::deserialize_with<agency_transaction_deserializer>(Slice(op.data()));
   std::cout << result << std::endl;
 }
 
