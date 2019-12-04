@@ -56,7 +56,7 @@ struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>> {
 
   constexpr static auto expected_array_length = sizeof...(Ds);
 
-  static auto unpack(arangodb::velocypack::Slice s) -> result_type {
+  static auto unpack(::deserializer::slice_type s) -> result_type {
     using namespace std::string_literals;
 
     if (!s.isArray()) {
@@ -73,7 +73,7 @@ struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>> {
 
  private:
   template <std::size_t... I>
-  static auto unpack_internal(arangodb::velocypack::Slice s, std::index_sequence<I...>)
+  static auto unpack_internal(::deserializer::slice_type s, std::index_sequence<I...>)
       -> result_type {
     value_type values;
     deserialize_error error;

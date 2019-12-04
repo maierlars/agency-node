@@ -2,6 +2,7 @@
 #define VELOCYPACK_PARAMETER_LIST_H
 #include "gadgets.h"
 #include "values.h"
+#include "vpack-types.h"
 
 namespace deserializer {
 
@@ -38,10 +39,10 @@ struct factory_simple_parameter {
 
 template <char const N[], bool required>
 struct factory_slice_parameter {
-  using value_type = arangodb::velocypack::Slice;
+  using value_type = ::deserializer::slice_type;
   constexpr static bool is_required = required;
   constexpr static auto name = N;
-  constexpr static auto default_value = arangodb::velocypack::Slice::nullSlice();
+  constexpr static auto default_value = ::deserializer::slice_type::nullSlice();
 };
 
 /*
@@ -68,7 +69,7 @@ struct parameter_executor<factory_simple_parameter<N, T, required, default_v>> {
   using result_type = result<std::pair<T, bool>, deserialize_error>;
   constexpr static bool has_value = true;
 
-  static auto unpack(Slice s) {
+  static auto unpack(::deserializer::slice_type s) {
     using namespace std::string_literals;
 
     auto value_slice = s.get(N);
@@ -100,7 +101,7 @@ struct parameter_executor<factory_slice_parameter<N, required>> {
   using result_type = result<std::pair<value_type, bool>, deserialize_error>;
   constexpr static bool has_value = true;
 
-  static auto unpack(Slice s) -> result_type {
+  static auto unpack(::deserializer::slice_type s) -> result_type {
     auto value_slice = s.get(N);
     if (!value_slice.isNone()) {
       return result_type{std::make_pair(value_slice, true)};
@@ -123,7 +124,7 @@ struct parameter_executor<expected_value<N, V>> {
   using result_type = result<std::pair<unit_type, bool>, deserialize_error>;
   constexpr static bool has_value = false;
 
-  static auto unpack(Slice s) -> result_type {
+  static auto unpack(::deserializer::slice_type s) -> result_type {
     auto value_slice = s.get(N);
     values::ensure_value_comparator<V>{};
     if (values::value_comparator<V>::compare(value_slice)) {
@@ -163,7 +164,7 @@ struct parameter_list_executor<I, K, parameter_list::parameter_list<P, Ps...>> {
   using unpack_result = result<unit_type, deserialize_error>;
 
   template <typename T>
-  static auto unpack(T& t, Slice s) -> unpack_result {
+  static auto unpack(T& t, ::deserializer::slice_type s) -> unpack_result {
     static_assert(::deserializer::detail::gadgets::is_complete_type_v<parameter_list::detail::parameter_executor<P>>,
                   "parameter executor is not defined");
     // maybe one can do this with folding?
@@ -199,7 +200,7 @@ struct parameter_list_executor<I, K, parameter_list::parameter_list<>> {
   using unpack_result = result<unit_type, deserialize_error>;
 
   template <typename T>
-  static auto unpack(T& t, Slice s) -> unpack_result {
+  static auto unpack(T& t, ::deserializer::slice_type s) -> unpack_result {
     if (s.length() != K) {
       return unpack_result{deserialize_error{
           "superfluous field in object, object has " + std::to_string(s.length()) +
@@ -216,7 +217,7 @@ struct deserialize_plan_executor<parameter_list::parameter_list<Ps...>> {
   using tuple_type =
       typename plan_result_tuple<parameter_list::parameter_list<Ps...>>::type;
   using unpack_result = result<tuple_type, deserialize_error>;
-  static auto unpack(arangodb::velocypack::Slice s) -> unpack_result {
+  static auto unpack(::deserializer::slice_type s) -> unpack_result {
 
     // store all read parameter in this tuple
     tuple_type parameter;

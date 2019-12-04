@@ -9,6 +9,17 @@ struct identity_factory {
   T operator()(T t) const { return std::move(t); }
 };
 
+template<typename T, typename P = void>
+struct constructor_factory {
+  using constructed_type = T;
+  using plan = P;
+
+  template<typename... S>
+  T operator()(S&&... s) const {
+    return T(std::forward<S>(s)...);
+  }
+};
+
 }
 
 

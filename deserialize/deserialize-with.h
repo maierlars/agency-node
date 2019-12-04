@@ -1,7 +1,9 @@
 #ifndef VELOCYPACK_DESERIALIZE_WITH_H
 #define VELOCYPACK_DESERIALIZE_WITH_H
 #include "gadgets.h"
+#include "types.h"
 #include "plan-executor.h"
+#include "vpack-types.h"
 
 namespace deserializer {
 
@@ -44,7 +46,7 @@ template <typename D>
 constexpr bool is_deserializer_v = is_deserializer<D>::value;
 
 template <typename D, typename F>
-auto deserialize_with(F& factory, arangodb::velocypack::Slice slice) {
+auto deserialize_with(F& factory, ::deserializer::slice_type slice) {
   static_assert(is_deserializer_v<D>,
                 "given deserializer is missing some fields");
 
@@ -63,7 +65,7 @@ auto deserialize_with(F& factory, arangodb::velocypack::Slice slice) {
 
   static_assert(std::is_invocable_r_v<result<plan_result_type, deserialize_error>,
                                       decltype(&executor::deserialize_plan_executor<plan>::unpack),
-                                      arangodb::velocypack::Slice>,
+                                      ::deserializer::slice_type>,
                 "executor::unpack does not have the correct signature");
 
   // Simply forward to the plan_executor.
@@ -80,7 +82,7 @@ auto deserialize_with(F& factory, arangodb::velocypack::Slice slice) {
  * Deserializes the given slice using the deserializer D.
  */
 template <typename D>
-auto deserialize_with(arangodb::velocypack::Slice slice) {
+auto deserialize_with(::deserializer::slice_type slice) {
   using factory_type = typename D::factory;
   factory_type factory{};
   return deserialize_with<D>(factory, slice);

@@ -1,7 +1,3 @@
-//
-// Created by lars on 2019-12-04.
-//
-
 #ifndef VELOCYPACK_TYPES_H
 #define VELOCYPACK_TYPES_H
 
@@ -57,8 +53,4 @@ struct result {
     return result<T, E>(error().wrap(msg));
   }
 };
-#include <variant>
-#include "errors.h"
-#include "value-reader.h"
-#include "velocypack/Slice.h"
 #endif  // VELOCYPACK_TYPES_H

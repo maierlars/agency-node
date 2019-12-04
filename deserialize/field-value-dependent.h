@@ -50,7 +50,7 @@ struct field_value_dependent_executor<R, VD, VDs...> {
   using V = typename VD::value;
   using D = typename VD::deserializer;
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(arangodb::velocypack::Slice s, arangodb::velocypack::Slice v)
+  static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v)
       -> unpack_result {
     using namespace std::string_literals;
     values::ensure_value_comparator<V>{};
@@ -70,7 +70,7 @@ struct field_value_dependent_executor<R, VD, VDs...> {
 template <typename R>
 struct field_value_dependent_executor<R> {
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(arangodb::velocypack::Slice s, arangodb::velocypack::Slice v)
+  static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v)
       -> unpack_result {
     using namespace std::string_literals;
     return unpack_result{deserialize_error{"no handler for value `"s + v.toJson() + "` known"}};
@@ -94,7 +94,7 @@ struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N,
   using unpack_tuple_type = typename plan_result_tuple_type::type;
   using variant_type = typename plan_result_tuple_type::variant;
   using unpack_result = result<unpack_tuple_type, deserialize_error>;
-  static auto unpack(arangodb::velocypack::Slice s) -> unpack_result {
+  static auto unpack(::deserializer::slice_type s) -> unpack_result {
     /*
      * Select the sub deserializer depending on the value.
      * Delegate to that deserializer.
@@ -119,7 +119,7 @@ struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N,
 
 template <const char N[]>
 struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N>> {
-  static auto unpack(arangodb::velocypack::Slice s) {
+  static auto unpack(::deserializer::slice_type s) {
     /*
      * No matching type was found, we can not deserialize.
      */

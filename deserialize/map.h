@@ -1,11 +1,8 @@
-//
-// Created by lars on 2019-12-04.
-//
-
 #ifndef VELOCYPACK_MAP_H
 #define VELOCYPACK_MAP_H
 #include "plan-executor.h"
 #include "utilities.h"
+#include "vpack-types.h"
 
 namespace deserializer {
 
@@ -39,7 +36,7 @@ struct deserialize_plan_executor<map::map_deserializer<D, C, F>> {
   using container_type = typename map::map_deserializer<D, C, F>::constructed_type;
   using tuple_type = std::tuple<container_type>;
   using result_type = result<tuple_type, deserialize_error>;
-  static auto unpack(arangodb::velocypack::Slice s) -> result_type {
+  static auto unpack(::deserializer::slice_type s) -> result_type {
     container_type result;
     using namespace std::string_literals;
 
@@ -47,7 +44,7 @@ struct deserialize_plan_executor<map::map_deserializer<D, C, F>> {
       return result_type{deserialize_error{"expected object"}};
     }
 
-    for (auto const& member : arangodb::velocypack::ObjectIterator(s)) {
+    for (auto const& member : ::deserializer::object_iterator(s)) {
       auto member_result = deserialize_with<D>(member.value);
       if (!member_result) {
         return result_type{member_result.error().wrap(

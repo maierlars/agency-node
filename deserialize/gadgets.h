@@ -1,7 +1,3 @@
-//
-// Created by lars on 2019-12-04.
-//
-
 #ifndef VELOCYPACK_GADGETS_H
 #define VELOCYPACK_GADGETS_H
 

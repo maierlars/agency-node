@@ -3,6 +3,8 @@
 #include "plan-executor.h"
 #include "utilities.h"
 #include "gadgets.h"
+#include "vpack-types.h"
+#include "value-reader.h"
 
 namespace deserializer::values {
 
@@ -49,7 +51,7 @@ struct value_comparator;
 
 template <typename T, int v>
 struct value_comparator<numeric_value<T, v>> {
-  static bool compare(Slice s) {
+  static bool compare(::deserializer::slice_type s) {
     if (s.isNumber<T>()) {
       return s.getNumericValue<T>() == numeric_value<T, v>::value;
     }
@@ -60,7 +62,7 @@ struct value_comparator<numeric_value<T, v>> {
 
 template <const char V[]>
 struct value_comparator<string_value<V>> {
-  static bool compare(Slice s) {
+  static bool compare(::deserializer::slice_type s) {
     if (s.isString()) {
       return s.isEqualString(arangodb::velocypack::StringRef(V, strlen(V)));
     }
@@ -93,7 +95,7 @@ struct ensure_value_comparator {
                 "value reader is not specialized for this type. You will "
                 "get an incomplete type error.");
 
-  static_assert(std::is_invocable_r_v<bool, decltype(&value_comparator<V>::compare), Slice>,
+  static_assert(std::is_invocable_r_v<bool, decltype(&value_comparator<V>::compare), ::deserializer::slice_type>,
                 "a value_comparator<V> must have a static read method returning "
                 "bool and receiving a slice");
 };
@@ -117,7 +119,7 @@ struct deserialize_plan_executor<values::value_deserializer<T>> {
   using value_type = T;
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
-  static auto unpack(arangodb::velocypack::Slice s) -> result_type {
+  static auto unpack(::deserializer::slice_type s) -> result_type {
     ensure_value_reader<T>{};
     return value_reader<T>::read(s).map(
         [](T t) { return std::make_tuple(std::move(t)); });

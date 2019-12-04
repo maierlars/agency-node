@@ -17,7 +17,5 @@ struct deserialize_error {
  private:
   std::string msg;
 };
-#include <variant>
-#include "value-reader.h"
-#include "velocypack/Slice.h"
+
 #endif  // VELOCYPACK_ERRORS_H

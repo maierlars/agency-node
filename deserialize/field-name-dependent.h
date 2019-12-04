@@ -1,6 +1,8 @@
 #ifndef VELOCYPACK_FIELD_NAME_DEPENDENT_H
 #define VELOCYPACK_FIELD_NAME_DEPENDENT_H
 #include "plan-executor.h"
+#include "types.h"
+#include "vpack-types.h"
 
 namespace deserializer {
 
@@ -31,7 +33,7 @@ struct field_name_dependent_executor;
 template <typename R, const char N[], typename D, const char... Ns[], typename... Ds>
 struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, field_name_deserializer_pair<Ns, Ds>...> {
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(arangodb::velocypack::Slice s) -> unpack_result {
+  static auto unpack(::deserializer::slice_type s) -> unpack_result {
     using namespace std::string_literals;
 
     if (s.hasKey(N)) {
@@ -50,7 +52,7 @@ struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, fiel
 template <typename R>
 struct field_name_dependent_executor<R> {
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(arangodb::velocypack::Slice s) -> unpack_result {
+  static auto unpack(::deserializer::slice_type s) -> unpack_result {
     using namespace std::string_literals;
     return unpack_result{deserialize_error{"no known field"}};
   }
@@ -76,7 +78,7 @@ struct deserialize_plan_executor<field_name_dependent::field_name_dependent<NDs.
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
-  static auto unpack(arangodb::velocypack::Slice s) -> result_type {
+  static auto unpack(::deserializer::slice_type s) -> result_type {
     return field_name_dependent::detail::field_name_dependent_executor<variant_type, NDs...>::unpack(s).visit(
         visitor{[](variant_type const& v) {
                   return result_type{std::make_tuple(v)};

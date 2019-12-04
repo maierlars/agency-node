@@ -1,14 +1,9 @@
-//
-// Created by lars on 2019-12-04.
-//
-
 #ifndef VELOCYPACK_VALUE_READER_H
 #define VELOCYPACK_VALUE_READER_H
-#include "velocypack/Slice.h"
-
 #include "deserializer.h"
 #include "gadgets.h"
 #include "types.h"
+#include "vpack-types.h"
 
 namespace deserializer {
 
@@ -23,7 +18,7 @@ struct value_reader;
 template <>
 struct value_reader<double> {
   using result_type = result<double, deserialize_error>;
-  static result_type read(Slice s) {
+  static result_type read(::deserializer::slice_type s) {
     if (s.isNumber()) {
       return result_type{s.getNumber<double>()};
     }
@@ -35,7 +30,7 @@ struct value_reader<double> {
 template <>
 struct value_reader<std::string> {
   using result_type = result<std::string, deserialize_error>;
-  static result_type read(Slice s) {
+  static result_type read(::deserializer::slice_type s) {
     if (s.isString()) {
       return result_type{s.copyString()};
     }
@@ -47,7 +42,7 @@ struct value_reader<std::string> {
 template <>
 struct value_reader<bool> {
   using result_type = result<bool, deserialize_error>;
-  static result_type read(Slice s) {
+  static result_type read(::deserializer::slice_type s) {
     if (s.isBool()) {
       return result_type{s.getBool()};
     }
@@ -62,7 +57,7 @@ struct value_reader<bool> {
  */
 template <typename V>
 constexpr const bool has_value_reader_v =
-    deserializer::detail::gadgets::is_complete_type_v<value_reader<V>>;
+    ::deserializer::detail::gadgets::is_complete_type_v<value_reader<V>>;
 
 template <typename V>
 struct ensure_value_reader {
@@ -71,7 +66,7 @@ struct ensure_value_reader {
                 "get an incomplete type error.");
 
   using result_type = result<V, deserialize_error>;
-  static_assert(std::is_invocable_r_v<result_type, decltype(&value_reader<V>::read), Slice>,
+  static_assert(std::is_invocable_r_v<result_type, decltype(&value_reader<V>::read), ::deserializer::slice_type>,
                 "a value_reader<V> must have a static read method returning "
                 "result<V, deserialize_error> and receiving a slice");
 };
