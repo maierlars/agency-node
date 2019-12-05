@@ -16,8 +16,15 @@ struct constructor_factory {
 
   template<typename... S>
   T operator()(S&&... s) const {
-    return T(std::forward<S>(s)...);
+    return T{std::forward<S>(s)...};
   }
+};
+
+template<typename T, typename P>
+struct constructing_deserializer {
+  using constructed_type = T;
+  using plan = P;
+  using factory = constructor_factory<T>;
 };
 
 }

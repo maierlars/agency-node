@@ -153,13 +153,13 @@ struct agency_transaction {
   std::string client_id;
 };
 
-
+using operation_deserializer = map_deserializer<agency_operation_deserialzer, vector_map>;
+using precondition_deserializer = map_deserializer<agency_precondition_deserialzer, vector_map>;
+/*
 struct agency_transaction_factory {
-  using operation_deserializer = map_deserializer<agency_operation_deserialzer, vector_map>;
-  using precondition_deserializer = map_deserializer<agency_precondition_deserialzer, vector_map>;
 
-  using plan = fixed_order_deserializer<
-      operation_deserializer, precondition_deserializer, value_deserializer<std::string>>;
+
+  using plan = ;
   using constructed_type = agency_transaction;
 
   constructed_type operator()(const std::tuple<operation_deserializer::constructed_type, precondition_deserializer::constructed_type, std::string>& array) const {
@@ -167,7 +167,10 @@ struct agency_transaction_factory {
     return constructed_type{op_list, prec_list, client_id};
   }
 };
-using agency_transaction_deserializer = deserializer::from_factory<agency_transaction_factory>;
+using agency_transaction_deserializer = deserializer::from_factory<agency_transaction_factory>;*/
+
+using agency_transaction_deserializer = deserializer::utilities::constructing_deserializer<agency_transaction, fixed_order_deserializer<
+    operation_deserializer, precondition_deserializer, value_deserializer<std::string>>>;
 
 /* clang-format off */
 

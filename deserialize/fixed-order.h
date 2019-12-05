@@ -10,8 +10,6 @@ namespace deserializer::fixed_order {
  * Deserializes an array using a fixed order of deserializers. The result type
  * is a tuple containing the result types of deserializers in order they appear
  * in the template argument `Ds`.
- *
- * The factory is called with a single tuple parameter.
  */
 template <typename... Ds>
 struct fixed_order_deserializer {
@@ -23,6 +21,11 @@ struct fixed_order_deserializer {
 }  // namespace deserializer::fixed_order
 
 namespace deserializer::executor {
+
+template <typename... Ds>
+struct plan_result_tuple<fixed_order::fixed_order_deserializer<Ds...>> {
+  using type = typename fixed_order::fixed_order_deserializer<Ds...>::constructed_type;
+};
 
 namespace detail {
 
@@ -51,7 +54,7 @@ struct fixed_order_deserializer_executor_visitor {
 template <typename... Ds>
 struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>> {
   using value_type = typename fixed_order::fixed_order_deserializer<Ds...>::constructed_type;
-  using tuple_type = std::tuple<value_type>;
+  using tuple_type = value_type; //std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
   constexpr static auto expected_array_length = sizeof...(Ds);

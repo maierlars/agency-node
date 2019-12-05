@@ -52,6 +52,8 @@ struct deserialize_plan_executor<arrays::array_deserializer<D, C, F>> {
             member_result.error().wrap("at position "s + std::to_string(index))};
       }
     }
+
+    return result_type{std::move(result)};
   }
 };
 
