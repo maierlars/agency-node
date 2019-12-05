@@ -36,13 +36,15 @@ struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, fiel
   static auto unpack(::deserializer::slice_type s) -> unpack_result {
     using namespace std::string_literals;
 
-    if (s.hasKey(N)) {
-      return deserialize_with<D>(s).visit(
-          visitor{[](auto const& v) { return unpack_result{R{v}}; },
-                  [](deserialize_error const& e) {
-                    return unpack_result{
-                        e.wrap("during dependent parse (found field `"s + N + "`)")};
-                  }});
+    auto keySlice = s.get(N);
+
+    if (!keySlice.isNone()) {
+      return deserialize_with<D, hints::hint_list<hints::has_field<N>>>(s, std::make_tuple(keySlice))
+          .visit(visitor{[](auto const& v) { return unpack_result{R{v}}; },
+                         [](deserialize_error const& e) {
+                           return unpack_result{
+                               e.wrap("during dependent parse (found field `"s + N + "`)")};
+                         }});
     }
 
     return field_name_dependent_executor<R, field_name_deserializer_pair<Ns, Ds>...>::unpack(s);
@@ -66,24 +68,24 @@ namespace executor {
 
 template <typename... NDs>
 struct plan_result_tuple<field_name_dependent::field_name_dependent<NDs...>> {
-using variant = typename field_name_dependent::field_name_dependent<NDs...>::constructed_type;
-using type = std::tuple<variant>;
+  using variant = typename field_name_dependent::field_name_dependent<NDs...>::constructed_type;
+  using type = std::tuple<variant>;
 };
 
-template <typename... NDs>
-struct deserialize_plan_executor<field_name_dependent::field_name_dependent<NDs...>> {
+template <typename... NDs, typename H>
+struct deserialize_plan_executor<field_name_dependent::field_name_dependent<NDs...>, H> {
   using value_type = typename field_name_dependent::field_name_dependent<NDs...>::constructed_type;
   using variant_type =
       typename plan_result_tuple<field_name_dependent::field_name_dependent<NDs...>>::variant;
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
-  static auto unpack(::deserializer::slice_type s) -> result_type {
-    return field_name_dependent::detail::field_name_dependent_executor<variant_type, NDs...>::unpack(s).visit(
-        visitor{[](variant_type const& v) {
-                  return result_type{std::make_tuple(v)};
-                },
-                [](deserialize_error const& e) { return result_type{e}; }});
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+    return field_name_dependent::detail::field_name_dependent_executor<variant_type, NDs...>::unpack(s)
+        .visit(visitor{[](variant_type const& v) {
+                         return result_type{std::make_tuple(v)};
+                       },
+                       [](deserialize_error const& e) { return result_type{e}; }});
   }
 };
 }  // namespace executor

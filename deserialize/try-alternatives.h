@@ -37,13 +37,13 @@ struct try_alternatives_deserializer {
 }  // namespace try_alternatives
 
 namespace executor {
-template <typename... Ds>
-struct deserialize_plan_executor<try_alternatives::try_alternatives_deserializer<Ds...>> {
+template <typename... Ds, typename H>
+struct deserialize_plan_executor<try_alternatives::try_alternatives_deserializer<Ds...>, H> {
   using value_type =
       typename try_alternatives::try_alternatives_deserializer<Ds...>::constructed_type;
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
     /*
      * Try one alternative after the other. Take the first that does not fail. If all fail, fail.
      */

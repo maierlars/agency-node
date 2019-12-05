@@ -7,7 +7,7 @@ namespace deserializer::executor {
  * deserialize_plan_executor is specialized by different plan types. It contains
  * the actual logic and has a static `unpack` method.
  */
-template<typename P>
+template<typename P, typename H>
 struct deserialize_plan_executor;
 
 /*

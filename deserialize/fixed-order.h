@@ -51,15 +51,15 @@ struct fixed_order_deserializer_executor_visitor {
 
 }  // namespace detail
 
-template <typename... Ds>
-struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>> {
+template <typename... Ds, typename H>
+struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>, H> {
   using value_type = typename fixed_order::fixed_order_deserializer<Ds...>::constructed_type;
   using tuple_type = value_type; //std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
   constexpr static auto expected_array_length = sizeof...(Ds);
 
-  static auto unpack(::deserializer::slice_type s) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
     using namespace std::string_literals;
 
     if (!s.isArray()) {

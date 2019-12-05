@@ -63,13 +63,13 @@ namespace detail {
 template <typename...>
 struct parameter_executor {};
 
-template <char const N[], typename T, bool required, typename default_v>
-struct parameter_executor<factory_simple_parameter<N, T, required, default_v>> {
+template <char const N[], typename T, bool required, typename default_v, typename H>
+struct parameter_executor<factory_simple_parameter<N, T, required, default_v>, H> {
   using value_type = T;
   using result_type = result<std::pair<T, bool>, deserialize_error>;
   constexpr static bool has_value = true;
 
-  static auto unpack(::deserializer::slice_type s) {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) {
     using namespace std::string_literals;
 
     auto value_slice = s.get(N);
@@ -94,14 +94,14 @@ struct parameter_executor<factory_simple_parameter<N, T, required, default_v>> {
   }
 };
 
-template <char const N[], bool required>
-struct parameter_executor<factory_slice_parameter<N, required>> {
+template <char const N[], bool required, typename H>
+struct parameter_executor<factory_slice_parameter<N, required>, H> {
   using parameter_type = factory_slice_parameter<N, required>;
   using value_type = typename parameter_type::value_type;
   using result_type = result<std::pair<value_type, bool>, deserialize_error>;
   constexpr static bool has_value = true;
 
-  static auto unpack(::deserializer::slice_type s) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
     auto value_slice = s.get(N);
     if (!value_slice.isNone()) {
       return result_type{std::make_pair(value_slice, true)};
@@ -117,25 +117,27 @@ struct parameter_executor<factory_slice_parameter<N, required>> {
   }
 };
 
-template <const char N[], typename V>
-struct parameter_executor<expected_value<N, V>> {
+template <const char N[], typename V, typename H>
+struct parameter_executor<expected_value<N, V>, H> {
   using parameter_type = expected_value<N, V>;
   using value_type = void;
   using result_type = result<std::pair<unit_type, bool>, deserialize_error>;
   constexpr static bool has_value = false;
 
-  static auto unpack(::deserializer::slice_type s) -> result_type {
-    auto value_slice = s.get(N);
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
     values::ensure_value_comparator<V>{};
-    if (values::value_comparator<V>::compare(value_slice)) {
-      return result_type{std::make_pair(unit_type{}, true)};
+    if constexpr (!hints::hint_list_contains_v<hints::has_field_with_value<N, V>, H>) {
+      auto value_slice = s.get(N);
+      if (!values::value_comparator<V>::compare(value_slice)) {
+        using namespace std::string_literals;
+
+        return result_type{deserialize_error{
+            "value at `"s + N + "` not as expected, found: `" +
+            value_slice.toJson() + "`, expected: `" + to_string(V{}) + "`"}};
+      }
     }
 
-    using namespace std::string_literals;
-
-    return result_type{deserialize_error{
-        "value at `"s + N + "` not as expected, found: `" +
-        value_slice.toJson() + "`, expected: `" + to_string(V{}) + "`"}};
+    return result_type{std::make_pair(unit_type{}, true)};
   }
 };
 
@@ -159,48 +161,53 @@ namespace detail {
 template <int I, int K, typename...>
 struct parameter_list_executor;
 
-template <int I, int K, typename P, typename... Ps>
-struct parameter_list_executor<I, K, parameter_list::parameter_list<P, Ps...>> {
+template <int I, int K, typename P, typename... Ps, typename H>
+struct parameter_list_executor<I, K, parameter_list::parameter_list<P, Ps...>, H> {
   using unpack_result = result<unit_type, deserialize_error>;
 
   template <typename T>
-  static auto unpack(T& t, ::deserializer::slice_type s) -> unpack_result {
+  static auto unpack(T& t, ::deserializer::slice_type s, typename H::state_type hints)
+      -> unpack_result {
     static_assert(::deserializer::detail::gadgets::is_complete_type_v<parameter_list::detail::parameter_executor<P>>,
                   "parameter executor is not defined");
     // maybe one can do this with folding?
-    using executor = parameter_list::detail::parameter_executor<P>;
+    using executor = parameter_list::detail::parameter_executor<P, H>;
     using namespace std::string_literals;
 
     // expect_value does not have a value
     if constexpr (executor::has_value) {
-      auto result = executor::unpack(s);
+      auto result = executor::unpack(s, hints);
       if (result) {
         auto& [value, read_value] = result.get();
         std::get<I>(t) = value;
         if (read_value) {
-          return parameter_list_executor<I + 1, K + 1, parameter_list::parameter_list<Ps...>>::unpack(t, s);
+          return parameter_list_executor<I + 1, K + 1, parameter_list::parameter_list<Ps...>, H>::unpack(
+              t, s, hints);
         } else {
-          return parameter_list_executor<I + 1, K, parameter_list::parameter_list<Ps...>>::unpack(t, s);
+          return parameter_list_executor<I + 1, K, parameter_list::parameter_list<Ps...>, H>::unpack(
+              t, s, hints);
         }
       }
       return unpack_result{result.error().wrap(
           "during read of "s + std::to_string(I) + "th parameters value")};
     } else {
-      auto result = executor::unpack(s);
+      auto result = executor::unpack(s, hints);
       if (result) {
-        return parameter_list_executor<I, K + 1, parameter_list::parameter_list<Ps...>>::unpack(t, s);
+        return parameter_list_executor<I, K + 1, parameter_list::parameter_list<Ps...>, H>::unpack(
+            t, s, hints);
       }
       return unpack_result{result.error()};
     }
   }
 };
 
-template <int I, int K>
-struct parameter_list_executor<I, K, parameter_list::parameter_list<>> {
+template <int I, int K, typename H>
+struct parameter_list_executor<I, K, parameter_list::parameter_list<>, H> {
   using unpack_result = result<unit_type, deserialize_error>;
 
   template <typename T>
-  static auto unpack(T& t, ::deserializer::slice_type s) -> unpack_result {
+  static auto unpack(T& t, ::deserializer::slice_type s, typename H::state_type hints)
+      -> unpack_result {
     if (s.length() != K) {
       return unpack_result{deserialize_error{
           "superfluous field in object, object has " + std::to_string(s.length()) +
@@ -212,13 +219,13 @@ struct parameter_list_executor<I, K, parameter_list::parameter_list<>> {
 };
 }  // namespace detail
 
-template <typename... Ps>
-struct deserialize_plan_executor<parameter_list::parameter_list<Ps...>> {
+template <typename... Ps, typename H>
+struct deserialize_plan_executor<parameter_list::parameter_list<Ps...>, H> {
   using tuple_type =
       typename plan_result_tuple<parameter_list::parameter_list<Ps...>>::type;
   using unpack_result = result<tuple_type, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s) -> unpack_result {
-
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints)
+      -> unpack_result {
     // store all read parameter in this tuple
     tuple_type parameter;
 
@@ -229,7 +236,8 @@ struct deserialize_plan_executor<parameter_list::parameter_list<Ps...>> {
 
     // forward to the parameter execution
     auto parameter_result =
-        detail::parameter_list_executor<0, 0, parameter_list::parameter_list<Ps...>>::unpack(parameter, s);
+        detail::parameter_list_executor<0, 0, parameter_list::parameter_list<Ps...>, H>::unpack(
+            parameter, s, hints);
     if (parameter_result) {
       return unpack_result{parameter};
     }

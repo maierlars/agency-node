@@ -31,12 +31,12 @@ struct map_deserializer {
 
 namespace executor {
 
-template <typename D, template <typename, typename> typename C, typename F>
-struct deserialize_plan_executor<map::map_deserializer<D, C, F>> {
+template <typename D, template <typename, typename> typename C, typename F, typename H>
+struct deserialize_plan_executor<map::map_deserializer<D, C, F>, H> {
   using container_type = typename map::map_deserializer<D, C, F>::constructed_type;
   using tuple_type = std::tuple<container_type>;
   using result_type = result<tuple_type, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
     container_type result;
     using namespace std::string_literals;
 

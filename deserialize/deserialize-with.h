@@ -1,8 +1,9 @@
 #ifndef VELOCYPACK_DESERIALIZE_WITH_H
 #define VELOCYPACK_DESERIALIZE_WITH_H
 #include "gadgets.h"
-#include "types.h"
+#include "hints.h"
 #include "plan-executor.h"
+#include "types.h"
 #include "vpack-types.h"
 
 namespace deserializer {
@@ -45,8 +46,9 @@ class is_deserializer<T, std::void_t<typename T::plan, typename T::factory, type
 template <typename D>
 constexpr bool is_deserializer_v = is_deserializer<D>::value;
 
-template <typename D, typename F>
-auto deserialize_with(F& factory, ::deserializer::slice_type slice) {
+template <typename D, typename F, typename H = hints::hint_list_empty>
+auto deserialize_with(F& factory, ::deserializer::slice_type slice,
+                      typename H::state_type hints = {}) {
   static_assert(is_deserializer_v<D>,
                 "given deserializer is missing some fields");
 
@@ -59,17 +61,16 @@ auto deserialize_with(F& factory, ::deserializer::slice_type slice) {
   static_assert(detail::gadgets::is_applicable_r<typename D::constructed_type, factory_type, plan_result_type>::value,
                 "factory is not callable with result of plan unpacking");
 
-  static_assert(detail::gadgets::is_complete_type_v<executor::deserialize_plan_executor<plan>>,
+  static_assert(detail::gadgets::is_complete_type_v<executor::deserialize_plan_executor<plan, H>>,
                 "plan type does not specialize deserialize_plan_executor. You "
                 "will get an incomplete type error.");
 
   static_assert(std::is_invocable_r_v<result<plan_result_type, deserialize_error>,
-                                      decltype(&executor::deserialize_plan_executor<plan>::unpack),
-                                      ::deserializer::slice_type>,
+                                      decltype(&executor::deserialize_plan_executor<plan, H>::unpack), ::deserializer::slice_type, typename H::state_type>,
                 "executor::unpack does not have the correct signature");
 
   // Simply forward to the plan_executor.
-  auto plan_result = executor::deserialize_plan_executor<plan>::unpack(slice);
+  auto plan_result = executor::deserialize_plan_executor<plan, H>::unpack(slice, hints);
   if (plan_result) {
     // if successfully deserialized, apply to the factory.
     return result_type(std::apply(factory, plan_result.get()));
@@ -81,11 +82,11 @@ auto deserialize_with(F& factory, ::deserializer::slice_type slice) {
 /*
  * Deserializes the given slice using the deserializer D.
  */
-template <typename D>
-auto deserialize_with(::deserializer::slice_type slice) {
+template <typename D, typename H = hints::hint_list_empty>
+auto deserialize_with(::deserializer::slice_type slice, typename H::state_type hints = {}) {
   using factory_type = typename D::factory;
   factory_type factory{};
-  return deserialize_with<D>(factory, slice);
+  return deserialize_with<D, factory_type, H>(factory, slice);
 }
 }  // namespace deserializer
 #endif  // VELOCYPACK_DESERIALIZE_WITH_H
