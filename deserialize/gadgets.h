@@ -6,24 +6,24 @@
 namespace deserializer::detail::gadgets {
 namespace detail {
 
-template<std::size_t I, typename...>
+template <std::size_t I, typename...>
 struct index_of_type;
 
-template<std::size_t I, typename T, typename E, typename... Ts>
+template <std::size_t I, typename T, typename E, typename... Ts>
 struct index_of_type<I, T, E, Ts...> {
-  constexpr static auto value = index_of_type<I+1, T, Ts...>::value;
+  constexpr static auto value = index_of_type<I + 1, T, Ts...>::value;
 };
 
-template<std::size_t I, typename T, typename... Ts>
+template <std::size_t I, typename T, typename... Ts>
 struct index_of_type<I, T, T, Ts...> {
   constexpr static auto value = I;
 };
 
-}
+}  // namespace detail
 
-template<typename T, typename... Ts>
+template <typename T, typename... Ts>
 using index_of_type = detail::index_of_type<0, T, Ts...>;
-template<typename T, typename... Ts>
+template <typename T, typename... Ts>
 constexpr const auto index_of_type_v = detail::index_of_type<0, T, Ts...>::value;
 
 template <class... Ts>
@@ -51,18 +51,27 @@ template <typename T>
 constexpr const bool is_complete_type_v = is_complete_type<T>::value;
 
 namespace detail {
-template <class T, typename... Args>
-decltype(void(T{std::declval<Args>()...}), std::true_type()) test_braces(int);
+
+template <typename T, typename... Args>
+struct constructing_wrapper {};
+
+template <typename T, typename C = void>
+struct is_braces_constructible : std::false_type {};
+
+template <typename T, typename... Args>
+struct is_braces_constructible<constructing_wrapper<T, Args...>,
+                               std::void_t<decltype(T{std::declval<Args>()...})>>
+    : std::true_type {};
+
+}  // namespace detail
 
 template <class T, typename... Args>
-std::false_type test_braces(...);
-}
+struct is_braces_constructible : detail::is_braces_constructible<detail::constructing_wrapper<T, Args...>> {
+};  // check if T{std::declval<Args>()...} is wellformed
 
-template<class T, typename... Args>
-struct is_braces_constructible : decltype(detail::test_braces<T, Args...>(0)) {};
-
-template<class T, typename... Args>
-constexpr const bool is_braces_constructible_v = is_braces_constructible<T, Args...>::value;
+template <class T, typename... Args>
+constexpr const bool is_braces_constructible_v =
+    is_braces_constructible<T, Args...>::value;
 
 namespace detail {
 template <typename... Ts>
