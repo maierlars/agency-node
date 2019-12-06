@@ -1,7 +1,6 @@
 #ifndef VELOCYPACK_UTILITIES_H
 #define VELOCYPACK_UTILITIES_H
 
-#include "fixed-order.h"
 namespace deserializer::utilities {
 
 template <typename T>

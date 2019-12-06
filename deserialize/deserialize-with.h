@@ -5,6 +5,8 @@
 #include "plan-executor.h"
 #include "types.h"
 #include "vpack-types.h"
+#include "errors.h"
+
 
 namespace deserializer {
 
@@ -86,7 +88,7 @@ template <typename D, typename H = hints::hint_list_empty>
 auto deserialize_with(::deserializer::slice_type slice, typename H::state_type hints = {}) {
   using factory_type = typename D::factory;
   factory_type factory{};
-  return deserialize_with<D, factory_type, H>(factory, slice);
+  return deserialize_with<D, factory_type, H>(factory, slice, hints);
 }
 }  // namespace deserializer
 #endif  // VELOCYPACK_DESERIALIZE_WITH_H

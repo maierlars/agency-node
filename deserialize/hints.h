@@ -3,6 +3,7 @@
 #include <type_traits>
 
 #include "gadgets.h"
+#include "types.h"
 #include "vpack-types.h"
 
 namespace deserializer::hints {
@@ -28,6 +29,10 @@ struct has_field_with_value {
   using state_type = ::deserializer::slice_type;
 };
 
+struct is_object {
+  using state_type = unit_type;
+};
+
 template<typename, typename>
 struct hint_list_contains;
 
@@ -38,6 +43,12 @@ struct hint_list_contains<H, hint_list<Hs...>> {
 
 template<typename H, typename... Hs>
 constexpr const bool hint_list_contains_v = hint_list_contains<H, Hs...>::value;
+
+template<typename H>
+constexpr const bool hint_is_object = hint_list_contains_v<is_object, H>;
+
+template<const char N[], typename H>
+constexpr const bool hint_has_key = hint_list_contains_v<has_field<N>, H>;
 
 template<typename, typename>
 struct hint_list_state;

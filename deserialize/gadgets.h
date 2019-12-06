@@ -1,11 +1,16 @@
 #ifndef VELOCYPACK_GADGETS_H
 #define VELOCYPACK_GADGETS_H
+#include <cstddef>
+#include <tuple>
 
 namespace deserializer::detail::gadgets {
 namespace detail {
 
+template<std::size_t I, typename...>
+struct index_of_type;
+
 template<std::size_t I, typename T, typename E, typename... Ts>
-struct index_of_type {
+struct index_of_type<I, T, E, Ts...> {
   constexpr static auto value = index_of_type<I+1, T, Ts...>::value;
 };
 

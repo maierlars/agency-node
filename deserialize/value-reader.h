@@ -19,7 +19,7 @@ template <>
 struct value_reader<double> {
   using result_type = result<double, deserialize_error>;
   static result_type read(::deserializer::slice_type s) {
-    if (s.isNumber()) {
+    if (s.isNumber<double>()) {
       return result_type{s.getNumber<double>()};
     }
 

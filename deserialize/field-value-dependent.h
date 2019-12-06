@@ -37,16 +37,25 @@ struct field_value_dependent {
 
   using constructed_type = std::variant<typename VSs::deserializer::constructed_type...>;
 
+  static_assert(sizeof...(VSs) > 0, "need at lease one alternative");
+
   static_assert((is_value_deserializer_pair_v<VSs> && ...),
                 "list shall only contain `value_deserializer_pair`s");
 };
 
+template <const char N[], typename... VSs>
+struct field_value_dependent_deserializer {
+  using plan = field_value_dependent<N, VSs...>;
+  using constructed_type = typename plan::constructed_type;
+  using factory = utilities::identity_factory<constructed_type>;
+};
+
 namespace detail {
 
-template <typename...>
+template <std::size_t I, typename...>
 struct field_value_dependent_executor;
-template <typename E, typename VD, typename... VDs>
-struct field_value_dependent_executor<E, VD, VDs...> {
+template <std::size_t I, typename E, typename VD, typename... VDs>
+struct field_value_dependent_executor<I, E, VD, VDs...> {
   using V = typename VD::value;
   using D = typename VD::deserializer;
   using R = typename E::variant_type;
@@ -56,21 +65,23 @@ struct field_value_dependent_executor<E, VD, VDs...> {
     using namespace std::string_literals;
     values::ensure_value_comparator<V>{};
     if (values::value_comparator<V>::compare(v)) {
-      return deserialize_with<D, hints::hint_list<hints::has_field_with_value<E::name, V>>>(s)
+      using hint = hints::hint_list<hints::has_field_with_value<E::name, V>, hints::is_object, hints::has_field<E::name>>;
+
+      return deserialize_with<D, hint>(s, std::make_tuple(v, unit_type{}, v))
           .visit(::deserializer::detail::gadgets::visitor{
-              [](auto const& v) { return unpack_result{R{v}}; },
+              [](auto const& v) { return unpack_result{R{std::in_place_index<I>, v}}; },
               [](deserialize_error const& e) {
                 return unpack_result{
                     e.wrap("during dependent parse with value `"s + to_string(V{}) + "`")};
               }});
     }
 
-    return field_value_dependent_executor<E, VDs...>::unpack(s, v);
+    return field_value_dependent_executor<I+1, E, VDs...>::unpack(s, v);
   }
 };
 
-template <typename E>
-struct field_value_dependent_executor<E> {
+template <std::size_t I, typename E>
+struct field_value_dependent_executor<I, E> {
   using R = typename E::variant_type;
   using unpack_result = result<R, deserialize_error>;
   static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v)
@@ -112,7 +123,7 @@ struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N,
     using namespace std::string_literals;
 
     ::deserializer::slice_type value_slice = s.get(N);
-    return field_value_dependent::detail::field_value_dependent_executor<executor_type, VSs...>::unpack(s, value_slice)
+    return field_value_dependent::detail::field_value_dependent_executor<0, executor_type, VSs...>::unpack(s, value_slice)
         .visit(::deserializer::detail::gadgets::visitor{
             [](variant_type const& v) {
               return unpack_result{std::make_tuple(v)};

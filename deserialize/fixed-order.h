@@ -57,7 +57,7 @@ struct fixed_order_deserializer_executor_visitor {
       : value_store(value_store), error_store(error_store) {}
 
   bool operator()(T t) {
-    value_store = std::move(t);
+    value_store = t;
     return true;
   }
 

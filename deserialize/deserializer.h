@@ -2,6 +2,8 @@
 #ifndef VELOCYPACK_DESERIALIZER_H
 #define VELOCYPACK_DESERIALIZER_H
 
+#include "attribute.h"
+#include "array.h"
 #include "errors.h"
 #include "fixed-order.h"
 #include "try-alternatives.h"
