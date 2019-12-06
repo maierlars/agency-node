@@ -37,14 +37,14 @@ struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, fiel
     using namespace std::string_literals;
 
     auto keySlice = s.get(N);
-
     if (!keySlice.isNone()) {
       return deserialize_with<D, hints::hint_list<hints::has_field<N>>>(s, std::make_tuple(keySlice))
-          .visit(visitor{[](auto const& v) { return unpack_result{R{v}}; },
-                         [](deserialize_error const& e) {
-                           return unpack_result{
-                               e.wrap("during dependent parse (found field `"s + N + "`)")};
-                         }});
+          .visit(::deserializer::detail::gadgets::visitor{
+              [](auto const& v) { return unpack_result{R{v}}; },
+              [](deserialize_error const& e) {
+                return unpack_result{
+                    e.wrap("during dependent parse (found field `"s + N + "`)")};
+              }});
     }
 
     return field_name_dependent_executor<R, field_name_deserializer_pair<Ns, Ds>...>::unpack(s);
@@ -82,10 +82,9 @@ struct deserialize_plan_executor<field_name_dependent::field_name_dependent<NDs.
 
   static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
     return field_name_dependent::detail::field_name_dependent_executor<variant_type, NDs...>::unpack(s)
-        .visit(visitor{[](variant_type const& v) {
-                         return result_type{std::make_tuple(v)};
-                       },
-                       [](deserialize_error const& e) { return result_type{e}; }});
+        .visit(::deserializer::detail::gadgets::visitor{
+            [](variant_type const& v) { return result_type{std::make_tuple(v)}; },
+            [](deserialize_error const& e) { return result_type{e}; }});
   }
 };
 }  // namespace executor

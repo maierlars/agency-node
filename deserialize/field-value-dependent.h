@@ -56,14 +56,13 @@ struct field_value_dependent_executor<E, VD, VDs...> {
     using namespace std::string_literals;
     values::ensure_value_comparator<V>{};
     if (values::value_comparator<V>::compare(v)) {
-      return deserialize_with < D,
-             hints::hint_list<hints::has_field_with_value<E::name, V>>>(s).visit(
-                 visitor{[](auto const& v) { return unpack_result{R{v}}; },
-                         [](deserialize_error const& e) {
-                           return unpack_result{
-                               e.wrap("during dependent parse with value `"s +
-                                      to_string(V{}) + "`")};
-                         }});
+      return deserialize_with<D, hints::hint_list<hints::has_field_with_value<E::name, V>>>(s)
+          .visit(::deserializer::detail::gadgets::visitor{
+              [](auto const& v) { return unpack_result{R{v}}; },
+              [](deserialize_error const& e) {
+                return unpack_result{
+                    e.wrap("during dependent parse with value `"s + to_string(V{}) + "`")};
+              }});
     }
 
     return field_value_dependent_executor<E, VDs...>::unpack(s, v);
@@ -112,15 +111,15 @@ struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N,
      */
     using namespace std::string_literals;
 
-    Slice value_slice = s.get(N);
+    ::deserializer::slice_type value_slice = s.get(N);
     return field_value_dependent::detail::field_value_dependent_executor<executor_type, VSs...>::unpack(s, value_slice)
-        .visit(visitor{[](variant_type const& v) {
-                         return unpack_result{std::make_tuple(v)};
-                       },
-                       [](deserialize_error const& e) {
-                         return unpack_result{
-                             e.wrap("when parsing dependently on `"s + N + "`")};
-                       }});
+        .visit(::deserializer::detail::gadgets::visitor{
+            [](variant_type const& v) {
+              return unpack_result{std::make_tuple(v)};
+            },
+            [](deserialize_error const& e) {
+              return unpack_result{e.wrap("when parsing dependently on `"s + N + "`")};
+            }});
   }
 };
 

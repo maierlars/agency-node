@@ -2,7 +2,6 @@
 #define VELOCYPACK_GADGETS_H
 
 namespace deserializer::detail::gadgets {
-
 namespace detail {
 
 template<std::size_t I, typename T, typename E, typename... Ts>
@@ -22,6 +21,12 @@ using index_of_type = detail::index_of_type<0, T, Ts...>;
 template<typename T, typename... Ts>
 constexpr const auto index_of_type_v = detail::index_of_type<0, T, Ts...>::value;
 
+template <class... Ts>
+struct visitor : Ts... {
+  using Ts::operator()...;
+};
+template <class... Ts>
+visitor(Ts...)->visitor<Ts...>;
 
 template <typename R, typename F, typename T>
 struct is_applicable_r;

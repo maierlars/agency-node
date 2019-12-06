@@ -77,7 +77,7 @@ struct parameter_executor<factory_simple_parameter<N, T, required, default_v>, H
       ensure_value_reader<T>{};
 
       return value_reader<T>::read(value_slice)
-          .visit(visitor{[](T const& v) {
+          .visit(::deserializer::detail::gadgets::visitor{[](T const& v) {
                            return result_type{std::make_pair(v, true)};
                          },
                          [](deserialize_error const& e) {

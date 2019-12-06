@@ -1,0 +1,1 @@
+/usr/lib/ccache/c++  -O3 -DNDEBUG  -rdynamic CMakeFiles/deserializer-test.dir/test.cpp.o  -o deserializer-test ../../velocypack/libvelocypack.a 

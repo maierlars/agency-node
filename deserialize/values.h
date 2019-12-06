@@ -53,7 +53,7 @@ template <typename T, int v>
 struct value_comparator<numeric_value<T, v>> {
   static bool compare(::deserializer::slice_type s) {
     if (s.isNumber<T>()) {
-      return s.getNumericValue<T>() == numeric_value<T, v>::value;
+      return s.getNumber<T>() == numeric_value<T, v>::value;
     }
 
     return false;
