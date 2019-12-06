@@ -1,5 +1,6 @@
 #ifndef VELOCYPACK_UTILITIES_H
 #define VELOCYPACK_UTILITIES_H
+#include "gadgets.h"
 
 namespace deserializer::utilities {
 
@@ -16,6 +17,7 @@ struct constructor_factory {
 
   template<typename... S>
   T operator()(S&&... s) const {
+    static_assert(::deserializer::detail::gadgets::is_braces_constructible_v<T, S...>, "the type is not constructible with the given types");
     return T{std::forward<S>(s)...};
   }
 };

@@ -27,6 +27,7 @@ using namespace deserializer::fixed_order;
 using namespace deserializer::map;
 using namespace deserializer::parameter_list;
 using namespace deserializer::values;
+using deserializer::value_reader;
 
 constexpr const char parameter_name_delta[] = "delta";
 constexpr const char parameter_name_new[] = "new";
@@ -153,8 +154,8 @@ struct agency_transaction {
   std::string client_id;
 };
 
-using operation_deserializer = map_deserializer<agency_operation_deserialzer, vector_map>;
-using precondition_deserializer = map_deserializer<agency_precondition_deserialzer, vector_map>;
+using operation_deserializer = map_deserializer<agency_operation_deserialzer, vector_map, value_reader<std::string_view>>;
+using precondition_deserializer = map_deserializer<agency_precondition_deserialzer, vector_map, value_reader<std::string_view>>;
 /*
 struct agency_transaction_factory {
 

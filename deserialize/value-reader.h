@@ -17,6 +17,7 @@ struct value_reader;
 
 template <>
 struct value_reader<double> {
+  using value_type = double;
   using result_type = result<double, deserialize_error>;
   static result_type read(::deserializer::slice_type s) {
     if (s.isNumber<double>()) {
@@ -29,6 +30,7 @@ struct value_reader<double> {
 
 template <>
 struct value_reader<std::string> {
+  using value_type = std::string;
   using result_type = result<std::string, deserialize_error>;
   static result_type read(::deserializer::slice_type s) {
     if (s.isString()) {
@@ -39,8 +41,23 @@ struct value_reader<std::string> {
   }
 };
 
+
+template <>
+struct value_reader<std::string_view> {
+  using value_type = std::string_view;
+  using result_type = result<std::string_view, deserialize_error>;
+  static result_type read(::deserializer::slice_type s) {
+    if (s.isString()) {
+      return result_type{s.stringView()};
+    }
+
+    return result_type{deserialize_error{"value is not a string"}};
+  }
+};
+
 template <>
 struct value_reader<bool> {
+  using value_type = bool;
   using result_type = result<bool, deserialize_error>;
   static result_type read(::deserializer::slice_type s) {
     if (s.isBool()) {
@@ -70,6 +87,7 @@ struct ensure_value_reader {
                 "a value_reader<V> must have a static read method returning "
                 "result<V, deserialize_error> and receiving a slice");
 };
+
 
 
 }  // namespace deserializer

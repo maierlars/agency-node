@@ -51,6 +51,20 @@ template <typename T>
 constexpr const bool is_complete_type_v = is_complete_type<T>::value;
 
 namespace detail {
+template <class T, typename... Args>
+decltype(void(T{std::declval<Args>()...}), std::true_type()) test_braces(int);
+
+template <class T, typename... Args>
+std::false_type test_braces(...);
+}
+
+template<class T, typename... Args>
+struct is_braces_constructible : decltype(detail::test_braces<T, Args...>(0)) {};
+
+template<class T, typename... Args>
+constexpr const bool is_braces_constructible_v = is_braces_constructible<T, Args...>::value;
+
+namespace detail {
 template <typename... Ts>
 struct tuple_no_void_impl;
 
