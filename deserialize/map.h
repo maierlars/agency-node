@@ -44,7 +44,7 @@ struct deserialize_plan_executor<map::map_deserializer<D, C, F>> {
       return result_type{deserialize_error{"expected object"}};
     }
 
-    for (auto const& member : ::deserializer::object_iterator(s)) {
+    for (auto const& member : ::deserializer::object_iterator(s, true)) { // use sequential deserialization
       auto member_result = deserialize_with<D>(member.value);
       if (!member_result) {
         return result_type{member_result.error().wrap(

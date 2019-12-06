@@ -1,0 +1,1 @@
+/usr/lib/ccache/c++  -O3 -DNDEBUG  -rdynamic CMakeFiles/test-tree.dir/agency-node-test.cpp.o CMakeFiles/test-tree.dir/node.cpp.o CMakeFiles/test-tree.dir/deserialize/test/test.cpp.o  -o test-tree -lasan -lpthread velocypack/libvelocypack.a -lubsan 

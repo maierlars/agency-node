@@ -38,7 +38,7 @@ struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, fiel
 
     if (s.hasKey(N)) {
       return deserialize_with<D>(s).visit(
-          visitor{[](auto const& v) { return unpack_result{R{v}}; },
+          ::deserializer::detail::gadgets::visitor{[](auto const& v) { return unpack_result{R{v}}; },
                   [](deserialize_error const& e) {
                     return unpack_result{
                         e.wrap("during dependent parse (found field `"s + N + "`)")};
@@ -80,7 +80,7 @@ struct deserialize_plan_executor<field_name_dependent::field_name_dependent<NDs.
 
   static auto unpack(::deserializer::slice_type s) -> result_type {
     return field_name_dependent::detail::field_name_dependent_executor<variant_type, NDs...>::unpack(s).visit(
-        visitor{[](variant_type const& v) {
+        ::deserializer::detail::gadgets::visitor{[](variant_type const& v) {
                   return result_type{std::make_tuple(v)};
                 },
                 [](deserialize_error const& e) { return result_type{e}; }});

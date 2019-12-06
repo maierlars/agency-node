@@ -1,0 +1,1 @@
+/usr/lib/ccache/c++   -Wall -Wextra -msse4.2 -O3 -DNDEBUG -Wall -Wextra -O3 -fomit-frame-pointer  -rdynamic CMakeFiles/json-to-vpack.dir/json-to-vpack.cpp.o  -o json-to-vpack ../libvelocypack.a 

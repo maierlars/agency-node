@@ -56,7 +56,7 @@ struct field_value_dependent_executor<R, VD, VDs...> {
     values::ensure_value_comparator<V>{};
     if (values::value_comparator<V>::compare(v)) {
       return deserialize_with<D>(s).visit(
-          visitor{[](auto const& v) { return unpack_result{R{v}}; },
+          ::deserializer::detail::gadgets::visitor{[](auto const& v) { return unpack_result{R{v}}; },
                   [](deserialize_error const& e) {
                     return unpack_result{
                         e.wrap("during dependent parse with value `"s + to_string(V{}) + "`")};
@@ -101,13 +101,13 @@ struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N,
      */
     using namespace std::string_literals;
 
-    Slice value_slice = s.get(N);
+    slice_type value_slice = s.get(N);
     if (value_slice.isNone()) {
       return unpack_result{deserialize_error{"field `"s + N + "` not found"}};
     }
 
     return field_value_dependent::detail::field_value_dependent_executor<variant_type, VSs...>::unpack(s, value_slice)
-        .visit(visitor{[](variant_type const& v) {
+        .visit(::deserializer::detail::gadgets::visitor{[](variant_type const& v) {
                          return unpack_result{std::make_tuple(v)};
                        },
                        [](deserialize_error const& e) {

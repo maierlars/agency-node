@@ -2,6 +2,13 @@
 #define VELOCYPACK_GADGETS_H
 
 namespace deserializer::detail::gadgets {
+template <class... Ts>
+struct visitor : Ts... {
+  using Ts::operator()...;
+};
+template <class... Ts>
+visitor(Ts...)->visitor<Ts...>;
+
 template <typename R, typename F, typename T>
 struct is_applicable_r;
 

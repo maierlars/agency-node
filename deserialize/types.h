@@ -1,5 +1,6 @@
 #ifndef VELOCYPACK_TYPES_H
 #define VELOCYPACK_TYPES_H
+#include <variant>
 
 struct unit_type {};
 

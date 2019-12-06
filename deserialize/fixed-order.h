@@ -4,7 +4,8 @@
 #include "plan-executor.h"
 #include "utilities.h"
 
-namespace deserializer::fixed_order {
+namespace deserializer {
+namespace fixed_order {
 
 /*
  * Deserializes an array using a fixed order of deserializers. The result type
@@ -18,7 +19,26 @@ struct fixed_order_deserializer {
   using factory = utilities::identity_factory<constructed_type>;
 };
 
-}  // namespace deserializer::fixed_order
+}  // namespace fixed_order
+
+template<typename... Ts>
+struct tuple_factory {
+
+  using constructed_type = std::tuple<Ts...>;
+
+  template<typename... S>
+  constructed_type operator()(S&&... s) {
+    return std::make_tuple(std::forward<S>(s)...);
+  }
+};
+
+template <typename... Ds>
+struct tuple_deserializer {
+  using constructed_type = std::tuple<typename Ds::constructed_type...>;
+  using plan = fixed_order::fixed_order_deserializer<Ds...>;
+  using factory = tuple_factory<typename Ds::constructed_type...>;
+};
+}  // namespace deserializer
 
 namespace deserializer::executor {
 
@@ -54,7 +74,7 @@ struct fixed_order_deserializer_executor_visitor {
 template <typename... Ds>
 struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>> {
   using value_type = typename fixed_order::fixed_order_deserializer<Ds...>::constructed_type;
-  using tuple_type = value_type; //std::tuple<value_type>;
+  using tuple_type = value_type;  // std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
   constexpr static auto expected_array_length = sizeof...(Ds);
