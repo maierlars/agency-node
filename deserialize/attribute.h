@@ -1,11 +1,11 @@
 #ifndef DESERIALIZER_ATTRIBUTE_H
 #define DESERIALIZER_ATTRIBUTE_H
+#include "deserialize-with.h"
 #include "errors.h"
+#include "hints.h"
 #include "plan-executor.h"
 #include "types.h"
 #include "utilities.h"
-#include "hints.h"
-#include "deserialize-with.h"
 
 namespace deserializer {
 
@@ -28,7 +28,6 @@ struct deserialize_plan_executor<attribute_deserializer<N, D>, H> {
   using result_type = result<tuple_type, deserialize_error>;
 
   auto static unpack(slice_type s, typename H::state_type hints) -> result_type {
-
     // if there is no hint that s is actually an object, we have to check that
     if constexpr (!hints::hint_is_object<H>) {
       if (!s.isObject()) {
@@ -43,8 +42,9 @@ struct deserialize_plan_executor<attribute_deserializer<N, D>, H> {
       value_slice = s.get(N);
     }
 
-
-    return deserialize_with<D>(value_slice).map([](auto v) { return std::make_tuple(v); });
+    return deserialize_with<D>(value_slice)
+        .map([](auto v) { return std::make_tuple(v); })
+        .wrap([](auto e) { return e.trace(N); });
   }
 };
 

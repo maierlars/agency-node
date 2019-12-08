@@ -49,7 +49,7 @@ template <typename T>
 using my_vector = std::vector<T>;
 
 void test02() {
-  auto buffer = R"=([{"op":"bar"}, {"op":"foo"}])="_vpack;
+  auto buffer = R"=([{"op":"bar"}, {"op":"fooz"}])="_vpack;
   auto slice = deserializer::test::recording_slice::from_buffer(buffer);
 
   constexpr static const char op_name[] = "op";
@@ -67,7 +67,7 @@ void test02() {
 
   auto result = deserializer::deserialize_with<deserial>(slice);
   if (!result) {
-    std::cerr << result.error().what() << std::endl;
+    std::cerr << result.error().as_string() << std::endl;
   }
   std::cout << *slice.tape << std::endl;
 }

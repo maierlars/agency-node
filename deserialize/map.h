@@ -50,7 +50,7 @@ struct deserialize_plan_executor<map::map_deserializer<D, C, K, F>, H> {
       auto member_result = deserialize_with<D>(member.value);
       if (!member_result) {
         return result_type{member_result.error().wrap(
-            "when handling member `"s + member.key.copyString() + "`")};
+            "when handling member `"s + member.key.copyString() + "`").trace(member.key.copyString())};
       }
 
       auto key_result = K::read(member.key);

@@ -189,7 +189,7 @@ void store_test() {
 }
 
 std::ostream& operator<<(std::ostream &os, deserialize_error const& err) {
-  os << "deserialization error: " << err.what();
+  os << "deserialization error: " << err.as_string();
   return os;
 }
 
@@ -245,7 +245,7 @@ std::ostream& operator<<(std::ostream &os, agency_transaction const& at) {
 }
 
 void deserialize_test() {
-  auto op = R"=([{"arango/Plan/Collection": {"op":"set", "new":{"hello":"world"}}}, {"arango/Plan/Collection":{"oldEmpty":true}}, "hello"])="_vpack;
+  auto op = R"=([{"arango/Plan/Collection": {"op":"bet", "new":{"hello":"world"}}}, {"arango/Plan/Collection":{"oldEmpty":true}}, "hello"])="_vpack;
 
   auto result = deserializer::deserialize_with<agency_transaction_deserializer>(Slice(op.data()));
   std::cout << result << std::endl;

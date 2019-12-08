@@ -4,54 +4,118 @@
 
 struct unit_type {};
 
-template <typename T, typename E>
-struct result {
-  std::variant<T, E> value;
+struct error_tag_t {};
+struct value_tag_t {};
 
-  static_assert(!std::is_void_v<T> && !std::is_void_v<E>);
+inline constexpr auto error_tag = error_tag_t{};
+inline constexpr auto value_tag = value_tag_t{};
 
-  template <typename S>
-  explicit result(result<S, E> const& r) {
-    if (r) {
-      value.emplace(r.get());
-    } else {
-      value.emplace(r.error());
+template<typename T, typename E>
+class result {
+  static_assert(!std::is_same_v<std::decay_t<T>, std::decay_t<E>>);
+
+ private:
+  template<typename S, typename F>
+  struct cast_visitor {
+    auto operator()(S const& t) const { return std::variant<T, E>(std::in_place_index<0>,t); }
+    auto operator()(F const& e) const { return std::variant<T, E>(std::in_place_index<1>,e); }
+  };
+
+ public:
+  using variant_type = std::variant<T, E>;
+
+  result(T t) : value(std::move(t)) {}
+  result(E e) : value(std::move(e)) {}
+
+  template<typename S, typename F, std::enable_if_t<std::is_convertible_v<S, T> && std::is_convertible_v<F, E>, int> = 0>
+  result(result<S, F> r) : value(r.visit(cast_visitor<S, F>{})) {}
+
+  result(value_tag_t, T t) : value(std::in_place_index<0>, std::move(t)) {}
+  result(error_tag_t, E e) : value(std::in_place_index<1>, std::move(e)) {}
+
+  result(result const&) = default;
+  result(result&&) noexcept = default;
+  result& operator=(result const&) = default;
+  result& operator=(result&&) noexcept = default;
+
+  operator bool() const noexcept { return ok(); }
+  bool ok() const noexcept { return value.index() == 0; }
+
+  T& get() & { return std::get<0>(value); }
+  T const& get() const& { return std::get<0>(value); }
+  T&& get() && { return std::get<0>(std::move(value)); }
+
+  E& error() & { return std::get<1>(value); }
+  E const& error() const& { return std::get<1>(value); }
+  E&& error() && { return std::get<1>(std::move(value)); }
+
+  variant_type& content() & { return value; }
+  variant_type const& content() const& { return value; }
+  variant_type&& content() && { return std::move(value); }
+
+  template<typename F, typename R = std::invoke_result_t<F, T&>>
+  result<R, E> map(F&& f) & noexcept(std::is_nothrow_invocable_v<F, T&>) {
+    if (ok()) {
+      return f(get());
     }
+    return error();
   }
 
-  template <typename S>
-  explicit result(S&& s) : value(std::forward<S>(s)) {}
-
-  explicit operator bool() const noexcept {
-    return std::holds_alternative<T>(value);
+  template<typename F, typename R = std::invoke_result_t<F, T const&>>
+  result<R, E> map(F&& f) const& noexcept(std::is_nothrow_invocable_v<F, T const&>) {
+    if (ok()) {
+      return f(get());
+    }
+    return error();
   }
 
-  template <typename F>
-  auto visit(F&& f) const {
+  template<typename F, typename R = std::invoke_result_t<F, T &&>>
+  result<R, E> map(F&& f) && noexcept(std::is_nothrow_invocable_v<F, T&&>) {
+    if (ok()) {
+      return f(std::move(*this).get());
+    }
+    return error();
+  }
+
+  template<typename F, typename R = std::invoke_result_t<F, E&>>
+  result<T, R> wrap(F&& f) & noexcept(std::is_nothrow_invocable_v<F, E&>) {
+    if (!ok()) {
+      return f(error());
+    }
+    return get();
+  }
+
+  template<typename F, typename R = std::invoke_result_t<F, E const&>>
+  result<T, R> wrap(F&& f) const& noexcept(std::is_nothrow_invocable_v<F, E const&>) {
+    if (!ok()) {
+      return f(error());
+    }
+    return get();
+  }
+
+  template<typename F, typename R = std::invoke_result_t<F, E &&>>
+  result<T, R> wrap(F&& f) && noexcept(std::is_nothrow_invocable_v<F, E &&>) {
+    if (!ok()) {
+      return result<T, R>(error_tag, f(std::move(*this).error()));
+    }
+    return get();
+  }
+
+  template<typename F>
+  auto visit(F&& f) & {
     return std::visit(f, value);
   }
 
-  E& error() { return std::get<E>(value); }
-  [[nodiscard]] E const& error() const { return std::get<E>(value); }
-
-  T& get() { return std::get<T>(value); }
-  [[nodiscard]] T const& get() const { return std::get<T>(value); }
-
-  template <typename F, typename R = std::invoke_result_t<F, T const&>>
-  result<R, E> map(F&& f) const {
-    if (*this) {
-      return result<R, E>(f(get()));
-    } else {
-      return result<R, E>(error());
-    }
+  template<typename F>
+  auto visit(F&& f) const& {
+    return std::visit(f, value);
   }
 
-  [[nodiscard]] result<T, E> wrap_error(std::string const& msg) const {
-    if (*this) {
-      return *this;
-    }
-
-    return result<T, E>(error().wrap(msg));
+  template<typename F>
+  auto visit(F&& f) && {
+    return std::visit(f, std::move(value));
   }
+ private:
+  variant_type value;
 };
 #endif  // VELOCYPACK_TYPES_H

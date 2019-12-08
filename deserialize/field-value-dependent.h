@@ -70,7 +70,7 @@ struct field_value_dependent_executor<I, E, VD, VDs...> {
       return deserialize_with<D, hint>(s, std::make_tuple(v, unit_type{}, v))
           .visit(::deserializer::detail::gadgets::visitor{
               [](auto const& v) { return unpack_result{R{std::in_place_index<I>, v}}; },
-              [](deserialize_error const& e) {
+              [](deserialize_error && e) {
                 return unpack_result{
                     e.wrap("during dependent parse with value `"s + to_string(V{}) + "`")};
               }});
@@ -128,8 +128,8 @@ struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N,
             [](variant_type const& v) {
               return unpack_result{std::make_tuple(v)};
             },
-            [](deserialize_error const& e) {
-              return unpack_result{e.wrap("when parsing dependently on `"s + N + "`")};
+            [](deserialize_error && e) {
+              return unpack_result{e.wrap("when parsing dependently on `"s + N + "`").trace(N)};
             }});
   }
 };

@@ -41,9 +41,9 @@ struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, fiel
       return deserialize_with<D, hints::hint_list<hints::has_field<N>>>(s, std::make_tuple(keySlice))
           .visit(::deserializer::detail::gadgets::visitor{
               [](auto const& v) { return unpack_result{R{v}}; },
-              [](deserialize_error const& e) {
+              [](deserialize_error && e) {
                 return unpack_result{
-                    e.wrap("during dependent parse (found field `"s + N + "`)")};
+                    e.wrap("during dependent parse (found field `"s + N + "`)").trace(N)};
               }});
     }
 

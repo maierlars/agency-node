@@ -80,9 +80,9 @@ struct parameter_executor<factory_simple_parameter<N, T, required, default_v>, H
           .visit(::deserializer::detail::gadgets::visitor{[](T const& v) {
                            return result_type{std::make_pair(v, true)};
                          },
-                         [](deserialize_error const& e) {
+                         [](deserialize_error && e) {
                            return result_type{
-                               e.wrap("when reading value of field "s + N)};
+                               e.wrap("when reading value of field "s + N).trace(N)};
                          }});
     }
 
@@ -133,7 +133,7 @@ struct parameter_executor<expected_value<N, V>, H> {
 
         return result_type{deserialize_error{
             "value at `"s + N + "` not as expected, found: `" +
-            value_slice.toJson() + "`, expected: `" + to_string(V{}) + "`"}};
+            value_slice.toJson() + "`, expected: `" + to_string(V{}) + "`"}.trace(N)};
       }
     }
 

@@ -50,7 +50,7 @@ struct deserialize_plan_executor<arrays::array_deserializer<D, C, F>, H> {
         result.emplace_back(member_result.get());
       } else {
         return result_type{
-            member_result.error().wrap("at position "s + std::to_string(index))};
+            member_result.error().trace(index)};
       }
     }
 

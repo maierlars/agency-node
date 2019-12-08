@@ -64,7 +64,7 @@ struct fixed_order_deserializer_executor_visitor {
   bool operator()(E e) {
     using namespace std::string_literals;
     error_store =
-        std::move(e).wrap("in fixed order array at position "s + std::to_string(I));
+        std::move(e).wrap("in fixed order array at position "s + std::to_string(I)).trace(I);
     return false;
   }
 };
