@@ -231,7 +231,7 @@ struct deserialize_plan_executor<parameter_list::parameter_list<Ps...>, H> {
 
     if (!s.isObject()) {
       return unpack_result{
-          deserialize_error(std::string{"value is not an object"})};
+          deserialize_error(std::string{"object expected"})};
     }
 
     // forward to the parameter execution

@@ -154,6 +154,12 @@ struct agency_transaction {
   std::string client_id;
 };
 
+
+template<typename S, typename C>
+struct path_slice {
+
+};
+
 using operation_deserializer = map_deserializer<agency_operation_deserialzer, vector_map, value_reader<std::string_view>>;
 using precondition_deserializer = map_deserializer<agency_precondition_deserialzer, vector_map, value_reader<std::string_view>>;
 /*
@@ -172,6 +178,9 @@ using agency_transaction_deserializer = deserializer::from_factory<agency_transa
 
 using agency_transaction_deserializer = deserializer::utilities::constructing_deserializer<agency_transaction, fixed_order_deserializer<
     operation_deserializer, precondition_deserializer, value_deserializer<std::string>>>;
+
+
+using agency_envelope_deserializer = deserializer::arrays::array_deserializer<agency_transaction_deserializer, std::vector>;
 
 /* clang-format off */
 
