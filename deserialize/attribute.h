@@ -24,10 +24,11 @@ namespace executor {
 
 template <const char N[], typename D, typename H>
 struct deserialize_plan_executor<attribute_deserializer<N, D>, H> {
-  using tuple_type = std::tuple<typename attribute_deserializer<N, D>::constructed_type>;
+  using value_type = typename attribute_deserializer<N, D>::constructed_type;
+  using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
-  auto static unpack(slice_type s, typename H::state_type hints) -> result_type {
+  auto static unpack(slice_type const& s, typename H::state_type hints) -> result_type {
     // if there is no hint that s is actually an object, we have to check that
     if constexpr (!hints::hint_is_object<H>) {
       if (!s.isObject()) {
@@ -42,9 +43,13 @@ struct deserialize_plan_executor<attribute_deserializer<N, D>, H> {
       value_slice = s.get(N);
     }
 
+    using namespace std::string_literals;
+
     return deserialize_with<D>(value_slice)
-        .map([](auto v) { return std::make_tuple(v); })
-        .wrap([](auto e) { return e.trace(N); });
+        .map([](value_type&& v) { return std::make_tuple(v); })
+        .wrap([](deserialize_error&& e) {
+          return e.wrap("when reading attribute "s + N).trace(N);
+        });
   }
 };
 

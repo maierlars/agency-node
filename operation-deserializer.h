@@ -21,11 +21,7 @@
 #include "deserialize/deserializer.h"
 #include "node-operations.h"
 
-using namespace deserializer::field_value_dependent;
-using namespace deserializer::field_name_dependent;
-using namespace deserializer::fixed_order;
 using namespace deserializer::map;
-using namespace deserializer::parameter_list;
 using namespace deserializer::values;
 using deserializer::value_reader;
 
@@ -41,15 +37,15 @@ constexpr const char parameter_op_name_remove[] = "remove";
 
 /* clang-format off */
 
-using operation_delta_parameter = factory_simple_parameter<parameter_name_delta, double, false>;
-using operation_ttl_parameter = factory_simple_parameter<parameter_name_ttl, double, false>;
-using operation_new_parameter = factory_slice_parameter<parameter_name_new, true>;
+using operation_delta_parameter = deserializer::factory_simple_parameter<parameter_name_delta, double, false>;
+using operation_ttl_parameter = deserializer::factory_simple_parameter<parameter_name_ttl, double, false>;
+using operation_new_parameter = deserializer::factory_slice_parameter<parameter_name_new, true>;
 
-using operation_op_set = expected_value<parameter_name_op, string_value<parameter_op_name_set>>;
-using operation_op_increment = expected_value<parameter_name_op, string_value<parameter_op_name_increment>>;
+using operation_op_set = deserializer::expected_value<parameter_name_op, string_value<parameter_op_name_set>>;
+using operation_op_increment = deserializer::expected_value<parameter_name_op, string_value<parameter_op_name_increment>>;
 
 struct increment_operation_factory {
-  using plan = parameter_list<
+  using plan = deserializer::parameter_list<
       operation_op_increment,
       operation_delta_parameter>;
 
@@ -61,7 +57,7 @@ struct increment_operation_factory {
 };
 
 struct set_operation_factory {
-  using plan = parameter_list<
+  using plan = deserializer::parameter_list<
       operation_op_set,
       operation_new_parameter,
       operation_ttl_parameter>;
@@ -73,12 +69,12 @@ struct set_operation_factory {
 };
 
 struct agency_operation_factory {
-  using plan = field_value_dependent<
+  using plan = deserializer::field_value_dependent<
       parameter_name_op,
-      value_deserializer_pair<
+      deserializer::value_deserializer_pair<
           string_value<parameter_op_name_increment>,
           deserializer::from_factory<increment_operation_factory>>,
-      value_deserializer_pair<
+      deserializer::value_deserializer_pair<
           string_value<parameter_op_name_set>,
           deserializer::from_factory<set_operation_factory>>>;
   using constructed_type = std::function<node_ptr(node_ptr const&)>;
@@ -97,9 +93,9 @@ constexpr const char parameter_name_old_not[] = "oldNot";
 constexpr const char parameter_name_old_empty[] = "oldEmpty";
 
 
-using precondition_old_parameter = factory_slice_parameter<parameter_name_old, true>;
-using precondition_old_not_parameter = factory_slice_parameter<parameter_name_old_not, true>;
-using precondition_old_empty_parameter = factory_simple_parameter<parameter_name_old_empty, bool, true>;
+using precondition_old_parameter = deserializer::factory_slice_parameter<parameter_name_old, true>;
+using precondition_old_not_parameter = deserializer::factory_slice_parameter<parameter_name_old_not, true>;
+using precondition_old_empty_parameter = deserializer::factory_simple_parameter<parameter_name_old_empty, bool, true>;
 
 template<typename C, typename P>
 struct slice_condition_factory {
@@ -111,11 +107,11 @@ struct slice_condition_factory {
   }
 };
 
-using equal_condition_factory = slice_condition_factory<equal_condition, parameter_list<precondition_old_parameter>>;
-using not_equal_condition_factory = slice_condition_factory<not_equal_condition, parameter_list<precondition_old_not_parameter>>;
+using equal_condition_factory = slice_condition_factory<equal_condition, deserializer::parameter_list<precondition_old_parameter>>;
+using not_equal_condition_factory = slice_condition_factory<not_equal_condition, deserializer::parameter_list<precondition_old_not_parameter>>;
 
 struct old_empty_condition_factory {
-  using plan = parameter_list<precondition_old_empty_parameter>;
+  using plan = deserializer::parameter_list<precondition_old_empty_parameter>;
   using constructed_type = is_empty_condition;
 
   constructed_type operator()(bool inverted) const {
@@ -124,10 +120,10 @@ struct old_empty_condition_factory {
 };
 
 struct agency_precondition_factory {
-  using plan = field_name_dependent<
-          field_name_deserializer_pair<parameter_name_old, deserializer::from_factory<equal_condition_factory>>,
-          field_name_deserializer_pair<parameter_name_old_not, deserializer::from_factory<not_equal_condition_factory>>,
-          field_name_deserializer_pair<parameter_name_old_empty, deserializer::from_factory<old_empty_condition_factory>>
+  using plan = deserializer::field_name_dependent<
+          deserializer::field_name_deserializer_pair<parameter_name_old, deserializer::from_factory<equal_condition_factory>>,
+          deserializer::field_name_deserializer_pair<parameter_name_old_not, deserializer::from_factory<not_equal_condition_factory>>,
+          deserializer::field_name_deserializer_pair<parameter_name_old_empty, deserializer::from_factory<old_empty_condition_factory>>
       >;
 
   using constructed_type = std::function<bool(node_ptr const&)>;
@@ -154,33 +150,29 @@ struct agency_transaction {
   std::string client_id;
 };
 
-
-template<typename S, typename C>
-struct path_slice {
-
-};
-
-using operation_deserializer = map_deserializer<agency_operation_deserialzer, vector_map, value_reader<std::string_view>>;
-using precondition_deserializer = map_deserializer<agency_precondition_deserialzer, vector_map, value_reader<std::string_view>>;
-/*
-struct agency_transaction_factory {
+using operation_deserializer = map_deserializer<
+    agency_operation_deserialzer,
+    vector_map,
+    value_reader<std::string_view>>;
+using precondition_deserializer = map_deserializer<
+    agency_precondition_deserialzer,
+    vector_map,
+    value_reader<std::string_view>>;
 
 
-  using plan = ;
-  using constructed_type = agency_transaction;
-
-  constructed_type operator()(const std::tuple<operation_deserializer::constructed_type, precondition_deserializer::constructed_type, std::string>& array) const {
-    auto &[op_list, prec_list, client_id] = array;
-    return constructed_type{op_list, prec_list, client_id};
-  }
-};
-using agency_transaction_deserializer = deserializer::from_factory<agency_transaction_factory>;*/
-
-using agency_transaction_deserializer = deserializer::utilities::constructing_deserializer<agency_transaction, fixed_order_deserializer<
-    operation_deserializer, precondition_deserializer, value_deserializer<std::string>>>;
+using agency_transaction_deserializer = deserializer::utilities::constructing_deserializer<
+    agency_transaction,
+    deserializer::fixed_order_deserializer<
+        operation_deserializer,
+        precondition_deserializer,
+        value_deserializer<std::string>
+    >>;
 
 
-using agency_envelope_deserializer = deserializer::arrays::array_deserializer<agency_transaction_deserializer, std::vector>;
+template<typename T>
+using default_vector = std::vector<T>;
+
+using agency_envelope_deserializer = deserializer::array_deserializer<agency_transaction_deserializer, default_vector>;
 
 /* clang-format off */
 

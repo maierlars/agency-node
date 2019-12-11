@@ -78,7 +78,7 @@ auto deserialize_with(F& factory, ::deserializer::slice_type slice,
     return result_type(std::apply(factory, plan_result.get()));
   }
   // otherwise forward the error
-  return result_type(plan_result.error());
+  return result_type(std::move(plan_result).error());
 }
 
 /*

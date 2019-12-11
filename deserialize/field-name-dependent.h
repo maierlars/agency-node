@@ -6,8 +6,6 @@
 
 namespace deserializer {
 
-namespace field_name_dependent {
-
 /*
  * field_name_dependent selects the deserializer by looking at the available
  * fields in the object. It takes the first deserializer that matches.
@@ -38,13 +36,12 @@ struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, fiel
 
     auto keySlice = s.get(N);
     if (!keySlice.isNone()) {
-      return deserialize_with<D, hints::hint_list<hints::has_field<N>>>(s, std::make_tuple(keySlice))
-          .visit(::deserializer::detail::gadgets::visitor{
-              [](auto const& v) { return unpack_result{R{v}}; },
-              [](deserialize_error && e) {
-                return unpack_result{
-                    e.wrap("during dependent parse (found field `"s + N + "`)").trace(N)};
-              }});
+      using hints = hints::hint_list<hints::has_field<N>>;
+      return deserialize_with<D, hints>(s, std::make_tuple(keySlice))
+          .map([](auto & v) { return R{std::move(v)}; })
+          .wrap([](deserialize_error && e) {
+            return std::move(e.wrap("during dependent parse (found field `"s + N + "`)").trace(N));
+          });
     }
 
     return field_name_dependent_executor<R, field_name_deserializer_pair<Ns, Ds>...>::unpack(s);
@@ -56,35 +53,32 @@ struct field_name_dependent_executor<R> {
   using unpack_result = result<R, deserialize_error>;
   static auto unpack(::deserializer::slice_type s) -> unpack_result {
     using namespace std::string_literals;
-    return unpack_result{deserialize_error{"no known field"}};
+    return unpack_result{deserialize_error{"format not recognized"}};
   }
 };
 
 }  // namespace detail
 
-}  // namespace field_name_dependent
-
 namespace executor {
 
 template <typename... NDs>
-struct plan_result_tuple<field_name_dependent::field_name_dependent<NDs...>> {
-  using variant = typename field_name_dependent::field_name_dependent<NDs...>::constructed_type;
+struct plan_result_tuple<field_name_dependent<NDs...>> {
+  using variant = typename field_name_dependent<NDs...>::constructed_type;
   using type = std::tuple<variant>;
 };
 
 template <typename... NDs, typename H>
-struct deserialize_plan_executor<field_name_dependent::field_name_dependent<NDs...>, H> {
-  using value_type = typename field_name_dependent::field_name_dependent<NDs...>::constructed_type;
-  using variant_type =
-      typename plan_result_tuple<field_name_dependent::field_name_dependent<NDs...>>::variant;
+struct deserialize_plan_executor<field_name_dependent<NDs...>, H> {
+  using value_type = typename field_name_dependent<NDs...>::constructed_type;
+  using variant_type = typename plan_result_tuple<field_name_dependent<NDs...>>::variant;
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
   static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
-    return field_name_dependent::detail::field_name_dependent_executor<variant_type, NDs...>::unpack(s)
+    return ::deserializer::detail::field_name_dependent_executor<variant_type, NDs...>::unpack(s)
         .visit(::deserializer::detail::gadgets::visitor{
             [](variant_type const& v) { return result_type{std::make_tuple(v)}; },
-            [](deserialize_error const& e) { return result_type{e}; }});
+            [](deserialize_error && e) { return result_type{std::move(e)}; }});
   }
 };
 }  // namespace executor

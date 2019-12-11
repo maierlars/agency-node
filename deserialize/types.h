@@ -1,5 +1,5 @@
-#ifndef VELOCYPACK_TYPES_H
-#define VELOCYPACK_TYPES_H
+#ifndef DESERIALIZER_TYPES_H
+#define DESERIALIZER_TYPES_H
 #include <variant>
 
 struct unit_type {};
@@ -74,7 +74,7 @@ class result {
     if (ok()) {
       return f(std::move(*this).get());
     }
-    return error();
+    return std::move(*this).error();
   }
 
   template<typename F, typename R = std::invoke_result_t<F, E&>>
@@ -82,7 +82,7 @@ class result {
     if (!ok()) {
       return f(error());
     }
-    return get();
+    return std::move(*this).get();
   }
 
   template<typename F, typename R = std::invoke_result_t<F, E const&>>
@@ -118,4 +118,4 @@ class result {
  private:
   variant_type value;
 };
-#endif  // VELOCYPACK_TYPES_H
+#endif  // DESERIALIZER_TYPES_H

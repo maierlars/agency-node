@@ -5,8 +5,6 @@
 
 namespace deserializer {
 
-namespace field_value_dependent {
-
 /*
  * Selects a deserializer depending on the value of the field `N`. `VSs` is a
  * list of `value_deserializer_pairs` that are used in that process.
@@ -65,18 +63,21 @@ struct field_value_dependent_executor<I, E, VD, VDs...> {
     using namespace std::string_literals;
     values::ensure_value_comparator<V>{};
     if (values::value_comparator<V>::compare(v)) {
-      using hint = hints::hint_list<hints::has_field_with_value<E::name, V>, hints::is_object, hints::has_field<E::name>>;
+      using hint = hints::hint_list<hints::has_field_with_value<E::name, V>,
+                                    hints::is_object, hints::has_field<E::name>>;
 
       return deserialize_with<D, hint>(s, std::make_tuple(v, unit_type{}, v))
           .visit(::deserializer::detail::gadgets::visitor{
-              [](auto const& v) { return unpack_result{R{std::in_place_index<I>, v}}; },
-              [](deserialize_error && e) {
-                return unpack_result{
-                    e.wrap("during dependent parse with value `"s + to_string(V{}) + "`")};
+              [](auto const& v) {
+                return unpack_result{R{std::in_place_index<I>, v}};
+              },
+              [](deserialize_error&& e) {
+                return unpack_result{std::move(
+                    e.wrap("with value `"s + to_string(V{}) + "`").annotate(E::name, to_string(V{})))};
               }});
     }
 
-    return field_value_dependent_executor<I+1, E, VDs...>::unpack(s, v);
+    return field_value_dependent_executor<I + 1, E, VDs...>::unpack(s, v);
   }
 };
 
@@ -90,26 +91,23 @@ struct field_value_dependent_executor<I, E> {
     if (s.isNone()) {
       return unpack_result{deserialize_error{"field `"s + E::name + "` not found"}};
     }
-    return unpack_result{deserialize_error{"no handler for value `"s + v.toJson() + "` known"}};
+    return unpack_result{std::move(
+        deserialize_error{"unrecognized value `"s + v.toJson() + "`"}.trace(E::name))};
   }
 };
 }  // namespace detail
 
-}  // namespace field_value_dependent
-
 namespace executor {
 template <const char N[], typename... VSs>
-struct plan_result_tuple<field_value_dependent::field_value_dependent<N, VSs...>> {
-  using variant = typename field_value_dependent::field_value_dependent<N, VSs...>::constructed_type;
+struct plan_result_tuple<field_value_dependent<N, VSs...>> {
+  using variant = typename field_value_dependent<N, VSs...>::constructed_type;
   using type = std::tuple<variant>;
 };
 
 template <const char N[], typename... VSs, typename H>
-struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N, VSs...>, H> {
-  using executor_type =
-      deserialize_plan_executor<field_value_dependent::field_value_dependent<N, VSs...>, H>;
-  using plan_result_tuple_type =
-      plan_result_tuple<field_value_dependent::field_value_dependent<N, VSs...>>;
+struct deserialize_plan_executor<field_value_dependent<N, VSs...>, H> {
+  using executor_type = deserialize_plan_executor<field_value_dependent<N, VSs...>, H>;
+  using plan_result_tuple_type = plan_result_tuple<field_value_dependent<N, VSs...>>;
   using unpack_tuple_type = typename plan_result_tuple_type::type;
   using variant_type = typename plan_result_tuple_type::variant;
   using unpack_result = result<unpack_tuple_type, deserialize_error>;
@@ -123,19 +121,20 @@ struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N,
     using namespace std::string_literals;
 
     ::deserializer::slice_type value_slice = s.get(N);
-    return field_value_dependent::detail::field_value_dependent_executor<0, executor_type, VSs...>::unpack(s, value_slice)
+    return ::deserializer::detail::field_value_dependent_executor<0, executor_type, VSs...>::unpack(s, value_slice)
         .visit(::deserializer::detail::gadgets::visitor{
             [](variant_type const& v) {
               return unpack_result{std::make_tuple(v)};
             },
-            [](deserialize_error && e) {
-              return unpack_result{e.wrap("when parsing dependently on `"s + N + "`").trace(N)};
+            [](deserialize_error&& e) {
+              return unpack_result{
+                  std::move(e.wrap("when parsing dependently on `"s + N + "`"))};
             }});
   }
 };
 
 template <const char N[], typename H>
-struct deserialize_plan_executor<field_value_dependent::field_value_dependent<N>, H> {
+struct deserialize_plan_executor<field_value_dependent<N>, H> {
   static auto unpack(::deserializer::slice_type s, typename H::state_type hints) {
     /*
      * No matching type was found, we can not deserialize.

@@ -9,6 +9,8 @@ struct immutable_list {
   immutable_list(immutable_list const&) = default;
   immutable_list(immutable_list&&) noexcept = default;
 
+  immutable_list(tail_container const& t) : _head(t._tail_start) {}
+
   immutable_list& operator=(immutable_list const&) = default;
   immutable_list& operator=(immutable_list&&) noexcept = default;
 
@@ -38,8 +40,8 @@ struct immutable_list {
   bool empty() const noexcept { return head; }
   immutable_list<T> const tail() const noexcept { return immutable_list(head ? head->next : nullptr); }
   immutable_list<T> tail() noexcept { return immutable_list(head ? head->next : nullptr); }
-  T const& gethead() const noexcept { return head->value; }
-  T& gethead() noexcept { return head->value; }
+  T const& head() const noexcept { return head->value; }
+  T& head() noexcept { return head->value; }
 
   bool operator==(immutable_list<T> const& other) const noexcept {
     if (head == nullptr || other.head == nullptr) {
@@ -86,11 +88,20 @@ struct immutable_list {
   std::conditional_t<I == 0, T const&, immutable_list<T>> get() const noexcept {
     static_assert(0 <= I && I <= 1);
     if constexpr (I == 0) {
-      return gethead();
+      return head();
     } else if constexpr (I == 1) {
       return tail();
     }
   }
+
+ public:
+  class tail_container {
+    container_pointer const& _tail_start;
+
+    tail_container(container_pointer const& tail) : _tail_start(tail) {}
+    friend immutable_list;
+  };
+
  private:
   struct element_container;
   using container_pointer = std::shared_ptr<element_container>;

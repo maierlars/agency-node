@@ -5,7 +5,6 @@
 #include "utilities.h"
 
 namespace deserializer {
-namespace fixed_order {
 
 /*
  * Deserializes an array using a fixed order of deserializers. The result type
@@ -19,14 +18,11 @@ struct fixed_order_deserializer {
   using factory = utilities::identity_factory<constructed_type>;
 };
 
-}  // namespace fixed_order
-
-template<typename... Ts>
+template <typename... Ts>
 struct tuple_factory {
-
   using constructed_type = std::tuple<Ts...>;
 
-  template<typename... S>
+  template <typename... S>
   constructed_type operator()(S&&... s) {
     return std::make_tuple(std::forward<S>(s)...);
   }
@@ -35,16 +31,15 @@ struct tuple_factory {
 template <typename... Ds>
 struct tuple_deserializer {
   using constructed_type = std::tuple<typename Ds::constructed_type...>;
-  using plan = fixed_order::fixed_order_deserializer<Ds...>;
+  using plan = fixed_order_deserializer<Ds...>;
   using factory = tuple_factory<typename Ds::constructed_type...>;
 };
-}  // namespace deserializer
 
-namespace deserializer::executor {
+namespace executor {
 
 template <typename... Ds>
-struct plan_result_tuple<fixed_order::fixed_order_deserializer<Ds...>> {
-  using type = typename fixed_order::fixed_order_deserializer<Ds...>::constructed_type;
+struct plan_result_tuple<fixed_order_deserializer<Ds...>> {
+  using type = typename fixed_order_deserializer<Ds...>::constructed_type;
 };
 
 namespace detail {
@@ -57,14 +52,14 @@ struct fixed_order_deserializer_executor_visitor {
       : value_store(value_store), error_store(error_store) {}
 
   bool operator()(T t) {
-    value_store = t;
+    value_store = std::move(t);
     return true;
   }
 
   bool operator()(E e) {
     using namespace std::string_literals;
-    error_store =
-        std::move(e).wrap("in fixed order array at position "s + std::to_string(I)).trace(I);
+    error_store = std::move(
+        e.wrap("in fixed order array at position "s + std::to_string(I)).trace(I));
     return false;
   }
 };
@@ -72,8 +67,8 @@ struct fixed_order_deserializer_executor_visitor {
 }  // namespace detail
 
 template <typename... Ds, typename H>
-struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>, H> {
-  using value_type = typename fixed_order::fixed_order_deserializer<Ds...>::constructed_type;
+struct deserialize_plan_executor<fixed_order_deserializer<Ds...>, H> {
+  using value_type = typename fixed_order_deserializer<Ds...>::constructed_type;
   using tuple_type = value_type;  // std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
@@ -96,9 +91,9 @@ struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>, H
 
  private:
   template <std::size_t... I>
-  static auto unpack_internal(::deserializer::slice_type s, std::index_sequence<I...>)
-      -> result_type {
-    value_type values;
+  static auto unpack_internal(const ::deserializer::slice_type& s,
+                              std::index_sequence<I...>) -> result_type {
+    value_type values;  // TODO this requires all types to be default constructible. This is unnecessary.
     deserialize_error error;
 
     bool result =
@@ -108,12 +103,13 @@ struct deserialize_plan_executor<fixed_order::fixed_order_deserializer<Ds...>, H
          ...);
 
     if (result) {
-      return result_type{values};
+      return result_type{std::move(values)};
     }
 
-    return result_type{error};
+    return result_type{std::move(error)};
   }
 };
-}  // namespace deserializer::executor
+}  // namespace executor
+}  // namespace deserializer
 
 #endif  // VELOCYPACK_FIXED_ORDER_H

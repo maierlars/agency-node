@@ -6,8 +6,6 @@
 
 namespace deserializer {
 
-namespace parameter_list {
-
 /*
  * parameter_list is used to specifiy a list of object fields that are decoded
  * and used as parameters to the factory. Possible types in `T` are
@@ -60,6 +58,19 @@ struct expected_value {
 
 namespace detail {
 
+
+}  // namespace detail
+
+namespace executor {
+
+template <typename... T>
+struct plan_result_tuple<parameter_list<T...>> {
+  using type =
+      typename ::deserializer::detail::gadgets::tuple_no_void<typename T::value_type...>::type;
+};
+
+namespace detail {
+
 template <typename...>
 struct parameter_executor {};
 
@@ -77,17 +88,14 @@ struct parameter_executor<factory_simple_parameter<N, T, required, default_v>, H
       ensure_value_reader<T>{};
 
       return value_reader<T>::read(value_slice)
-          .visit(::deserializer::detail::gadgets::visitor{[](T const& v) {
-                           return result_type{std::make_pair(v, true)};
-                         },
-                         [](deserialize_error && e) {
-                           return result_type{
-                               e.wrap("when reading value of field "s + N).trace(N)};
-                         }});
+          .map([](T&& t) { return std::make_pair(std::move(t), true); })
+          .wrap([](deserialize_error&& e) {
+            return std::move(e.wrap("when reading value of field "s + N).trace(N));
+          });
     }
 
     if (required) {
-      return result_type{deserialize_error{"field "s + N + " is required"}};
+      return result_type{deserialize_error{"field `"s + N + "` is required"}};
     } else {
       return result_type{std::make_pair(default_v::value, false)};
     }
@@ -110,7 +118,7 @@ struct parameter_executor<factory_slice_parameter<N, required>, H> {
     using namespace std::string_literals;
 
     if (required) {
-      return result_type{deserialize_error{"field "s + N + " is required"}};
+      return result_type{deserialize_error{"field `"s + N + "` is required"}};
     } else {
       return result_type{std::make_pair(parameter_type::default_value, false)};
     }
@@ -131,9 +139,10 @@ struct parameter_executor<expected_value<N, V>, H> {
       if (!values::value_comparator<V>::compare(value_slice)) {
         using namespace std::string_literals;
 
-        return result_type{deserialize_error{
+        return result_type{std::move(deserialize_error{
             "value at `"s + N + "` not as expected, found: `" +
-            value_slice.toJson() + "`, expected: `" + to_string(V{}) + "`"}.trace(N)};
+            value_slice.toJson() + "`, expected: `" + to_string(V{}) + "`"}
+                                         .trace(N))};
       }
     }
 
@@ -141,18 +150,6 @@ struct parameter_executor<expected_value<N, V>, H> {
   }
 };
 
-}  // namespace detail
-
-}  // namespace parameter_list
-namespace executor {
-
-template <typename... T>
-struct plan_result_tuple<parameter_list::parameter_list<T...>> {
-  using type =
-      typename ::deserializer::detail::gadgets::tuple_no_void<typename T::value_type...>::type;
-};
-
-namespace detail {
 /*
  * I counts the number of visited fields.
  * K encodes the offset in the result tuple.
@@ -162,16 +159,16 @@ template <int I, int K, typename...>
 struct parameter_list_executor;
 
 template <int I, int K, typename P, typename... Ps, typename H>
-struct parameter_list_executor<I, K, parameter_list::parameter_list<P, Ps...>, H> {
+struct parameter_list_executor<I, K, parameter_list<P, Ps...>, H> {
   using unpack_result = result<unit_type, deserialize_error>;
 
   template <typename T>
   static auto unpack(T& t, ::deserializer::slice_type s, typename H::state_type hints)
       -> unpack_result {
-    static_assert(::deserializer::detail::gadgets::is_complete_type_v<parameter_list::detail::parameter_executor<P>>,
+    static_assert(::deserializer::detail::gadgets::is_complete_type_v<detail::parameter_executor<P>>,
                   "parameter executor is not defined");
     // maybe one can do this with folding?
-    using executor = parameter_list::detail::parameter_executor<P, H>;
+    using executor = detail::parameter_executor<P, H>;
     using namespace std::string_literals;
 
     // expect_value does not have a value
@@ -181,28 +178,28 @@ struct parameter_list_executor<I, K, parameter_list::parameter_list<P, Ps...>, H
         auto& [value, read_value] = result.get();
         std::get<I>(t) = value;
         if (read_value) {
-          return parameter_list_executor<I + 1, K + 1, parameter_list::parameter_list<Ps...>, H>::unpack(
+          return parameter_list_executor<I + 1, K + 1, parameter_list<Ps...>, H>::unpack(
               t, s, hints);
         } else {
-          return parameter_list_executor<I + 1, K, parameter_list::parameter_list<Ps...>, H>::unpack(
+          return parameter_list_executor<I + 1, K, parameter_list<Ps...>, H>::unpack(
               t, s, hints);
         }
       }
-      return unpack_result{result.error().wrap(
-          "during read of "s + std::to_string(I) + "th parameters value")};
+      return unpack_result{std::move(result.error().wrap(
+          "during read of "s + std::to_string(I) + "th parameters value"))};
     } else {
       auto result = executor::unpack(s, hints);
       if (result) {
-        return parameter_list_executor<I, K + 1, parameter_list::parameter_list<Ps...>, H>::unpack(
+        return parameter_list_executor<I, K + 1, parameter_list<Ps...>, H>::unpack(
             t, s, hints);
       }
-      return unpack_result{result.error()};
+      return unpack_result{std::move(result).error()};
     }
   }
 };
 
 template <int I, int K, typename H>
-struct parameter_list_executor<I, K, parameter_list::parameter_list<>, H> {
+struct parameter_list_executor<I, K, parameter_list<>, H> {
   using unpack_result = result<unit_type, deserialize_error>;
 
   template <typename T>
@@ -210,8 +207,8 @@ struct parameter_list_executor<I, K, parameter_list::parameter_list<>, H> {
       -> unpack_result {
     if (s.length() != K) {
       return unpack_result{deserialize_error{
-          "superfluous field in object, object has " + std::to_string(s.length()) +
-          " fields, plan has " + std::to_string(K) + " fields"}};
+          "superfluous field in object, found " + std::to_string(s.length()) +
+          " fields, expected " + std::to_string(K) + " fields"}};
     }
 
     return unpack_result{unit_type{}};
@@ -220,29 +217,28 @@ struct parameter_list_executor<I, K, parameter_list::parameter_list<>, H> {
 }  // namespace detail
 
 template <typename... Ps, typename H>
-struct deserialize_plan_executor<parameter_list::parameter_list<Ps...>, H> {
+struct deserialize_plan_executor<parameter_list<Ps...>, H> {
   using tuple_type =
-      typename plan_result_tuple<parameter_list::parameter_list<Ps...>>::type;
+      typename plan_result_tuple<parameter_list<Ps...>>::type;
   using unpack_result = result<tuple_type, deserialize_error>;
   static auto unpack(::deserializer::slice_type s, typename H::state_type hints)
       -> unpack_result {
     // store all read parameter in this tuple
-    tuple_type parameter;
+    tuple_type parameter;  // TODO this requires all result types to be default constructible. This requirement is unnecessary.
 
     if (!s.isObject()) {
-      return unpack_result{
-          deserialize_error(std::string{"object expected"})};
+      return unpack_result{deserialize_error(std::string{"object expected"})};
     }
 
     // forward to the parameter execution
     auto parameter_result =
-        detail::parameter_list_executor<0, 0, parameter_list::parameter_list<Ps...>, H>::unpack(
+        detail::parameter_list_executor<0, 0, parameter_list<Ps...>, H>::unpack(
             parameter, s, hints);
     if (parameter_result) {
       return unpack_result{parameter};
     }
 
-    return unpack_result{parameter_result.error()};
+    return unpack_result{std::move(parameter_result).error()};
   }
 };
 

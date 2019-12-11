@@ -56,12 +56,12 @@ void test02() {
   constexpr static const char bar_name[] = "bar";
   constexpr static const char foo_name[] = "foo";
 
-  using deserial = deserializer::arrays::array_deserializer<
-      deserializer::field_value_dependent::field_value_dependent_deserializer<
+  using deserial = deserializer::array_deserializer<
+      deserializer::field_value_dependent_deserializer<
           op_name,
-          deserializer::field_value_dependent::value_deserializer_pair<
+          deserializer::value_deserializer_pair<
               deserializer::values::string_value<bar_name>, deserializer::attribute_deserializer<op_name, deserializer::values::value_deserializer<std::string>>>,
-          deserializer::field_value_dependent::value_deserializer_pair<
+          deserializer::value_deserializer_pair<
               deserializer::values::string_value<foo_name>, deserializer::attribute_deserializer<op_name, deserializer::values::value_deserializer<std::string>>>>,
       std::vector>;
 
