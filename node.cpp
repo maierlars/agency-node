@@ -1,10 +1,13 @@
 //
 // Created by lars on 28.11.19.
 //
+#include <cassert>
 #include <exception>
 
 #include "helper-strings.h"
 #include "node.h"
+
+#include "immer/flex_vector_transient.hpp"
 
 #include "velocypack/Builder.h"
 #include "velocypack/Iterator.h"
@@ -49,11 +52,11 @@ node_ptr node::from_slice(arangodb::velocypack::Slice s) {
     return make_node_ptr(node_object{std::move(container)});
   } else if (s.isArray()) {
     node_array::container_type container;
-    container.reserve(s.length());
+    auto result = container.transient();
     for (auto const& member : ArrayIterator(s)) {
-      container.push_back(node::from_slice(member));
+      result.push_back(node::from_slice(member));
     }
-    return make_node_ptr(node_array{std::move(container)});
+    return make_node_ptr(node_array{result.persistent()});
   } else if (s.isNull()) {
     return node::null_node();
   }
@@ -158,15 +161,15 @@ node_ptr node_array::set_impl(std::string const& key, node_ptr const& v) const {
   if (auto const parsed_value = string_to_number<std::size_t>(key);
       parsed_value.has_value()) {
     size_t const index = parsed_value.value();
-    auto result = value;
+    auto result = value.transient();
 
-    if (index >= value.size()) {
-      result.resize(index + 1, node::null_node());
+    while (index >= value.size()) {
+      result.push_back(node::null_node());
     }
 
-    result[index] = v;
+    result.set(index, v);
 
-    return make_node_ptr(node_array{std::move(result)});
+    return make_node_ptr(node_array{result.persistent()});
   } else {
     node_object::container_type result;
 
@@ -181,9 +184,9 @@ node_ptr node_array::set_impl(std::string const& key, node_ptr const& v) const {
 }
 
 node_array node_array::overlay_impl(node_array const& ov) const noexcept {
-  node_array::container_type result{value};
-  if (ov.value.size() > result.size()) {
-    result.resize(ov.value.size(), node::null_node());
+  auto result = value.transient();
+  while (ov.value.size() > result.size()) {
+    result.push_back(node::null_node());
   }
 
   // possible values:
@@ -192,21 +195,17 @@ node_array node_array::overlay_impl(node_array const& ov) const noexcept {
   for (size_t i = 0; i < ov.value.size(); ++i) {
     auto const& v = ov.value[i];
     if (v != nullptr) {
-      result[i] = v;
+      result.set(i, v);
     }
   }
 
-  return node_array{std::move(result)};
+  return node_array{result.persistent()};
 }
 
-node_array::node_array(node_ptr const& node) { value.emplace_back(node); }
+node_array::node_array(node_ptr const& node) : value{node} {}
 
 node_array node_array::prepend(node_ptr const& node) const {
-  node_array::container_type result;
-  result.reserve(value.size() + 1);
-  result.emplace_back(node);
-  std::copy(value.begin(), value.end(), std::inserter(result, result.end()));
-  return node_array{std::move(result)};
+  return node_array{value.push_front(node)};
 }
 
 node_array node_array::pop() const {
@@ -214,7 +213,7 @@ node_array node_array::pop() const {
     return node_array{value};
   }
 
-  return node_array{node_array::container_type{value.begin(), std::prev(value.end())}};
+  return node_array{value.take(value.size() - 1)};
 }
 
 node_array node_array::shift() const {
@@ -222,32 +221,32 @@ node_array node_array::shift() const {
     return node_array{value};
   }
 
-  return node_array{node_array::container_type{std::next(value.begin()), value.end()}};
+  return node_array{value.drop(1)};
 }
 
 node_array node_array::push(node_ptr const& node) const {
-  node_array::container_type result;
-  result.reserve(value.size() + 1);
-  result.assign(value.begin(), value.end());
-  result.emplace_back(node);
-  return node_array{std::move(result)};
+  return node_array{value.push_back(node)};
 }
 
 bool node_array::operator==(node_array const& other) const noexcept {
   auto const& left = value;
   auto const& right = other.value;
 
-  return std::equal(left.cbegin(), left.cend(), right.cbegin(), right.cend(),
+  return std::equal(left.begin(), left.end(), right.begin(), right.end(),
                     [](node_ptr const& left, node_ptr const& right) {
                       return *left == *right;
                     });
 }
 
 node_array node_array::erase(node_ptr const& node) const {
-  auto newContainer = container_type{};
-  std::copy_if(value.cbegin(), value.cend(), std::back_inserter(newContainer),
-               [&node](auto const& elt) { return *elt != *node; });
-  return node_array{newContainer};
+  auto it = std::find_if(value.begin(), value.end(), [&node](node_ptr const& current) {
+    return *node == *current;
+  });
+  if (it == value.end()) {
+    return node_array{value};
+  }
+  auto pos = std::distance(value.begin(), it);
+  return node_array{value.erase(pos)};
 }
 
 bool node_array::contains(node_ptr const& needle) const noexcept {
@@ -255,7 +254,7 @@ bool node_array::contains(node_ptr const& needle) const noexcept {
     return false;
   }
 
-  return std::any_of(value.cbegin(), value.cend(),
+  return std::any_of(value.begin(), value.end(),
                      [&needle](node_ptr const& node) { return *needle == *node; });
 }
 

@@ -9,6 +9,8 @@
 #include <variant>
 #include <vector>
 
+#include "immer/flex_vector.hpp"
+
 #include "velocypack/Builder.h"
 #include "velocypack/Slice.h"
 
@@ -133,7 +135,7 @@ constexpr const bool node_container_is_nothrow_overlay =
     std::is_nothrow_invocable_v<decltype(&T::overlay), node_container<T>, node_container<T> const&>;
 
 struct node_array final : public node_container<node_array> {
-  using container_type = std::vector<node_ptr>;
+  using container_type = immer::flex_vector<node_ptr>;
   container_type value;
 
   node_array() noexcept(std::is_nothrow_constructible_v<container_type>) = default;
