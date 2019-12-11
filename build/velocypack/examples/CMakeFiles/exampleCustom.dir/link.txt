@@ -1,1 +1,0 @@
-/usr/lib/ccache/c++   -Wall -Wextra -msse4.2 -O3 -DNDEBUG -Wall -Wextra -O3 -fomit-frame-pointer  -rdynamic CMakeFiles/exampleCustom.dir/exampleCustom.cpp.o  -o exampleCustom ../libvelocypack.a 
