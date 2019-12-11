@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "immer/flex_vector.hpp"
+#include "immer/map.hpp"
 
 #include "velocypack/Builder.h"
 #include "velocypack/Slice.h"
@@ -164,7 +165,7 @@ struct node_array final : public node_container<node_array> {
 };
 
 struct node_object final : public node_container<node_object> {
-  using container_type = std::map<std::string, node_ptr>;
+  using container_type = immer::map<std::string, node_ptr>;
 
   container_type value;
 

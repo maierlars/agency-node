@@ -8,6 +8,7 @@
 #include "node.h"
 
 #include "immer/flex_vector_transient.hpp"
+#include "immer/map_transient.hpp"
 
 #include "velocypack/Builder.h"
 #include "velocypack/Iterator.h"
@@ -26,8 +27,8 @@ node_ptr node_array::get_impl(std::string const& key) const noexcept {
 }
 
 node_ptr node_object::get_impl(std::string const& key) const noexcept {
-  if (auto it = value.find(key); it != value.end()) {
-    return it->second;
+  if (auto it = value.find(key); it != nullptr) {
+    return *it;
   }
 
   return nullptr;
@@ -47,7 +48,7 @@ node_ptr node::from_slice(arangodb::velocypack::Slice s) {
   } else if (s.isObject()) {
     node_object::container_type container;
     for (auto const& member : arangodb::velocypack::ObjectIterator(s)) {
-      container[member.key.copyString()] = node::from_slice(member.value);
+      container = container.set(member.key.copyString(), node::from_slice(member.value));
     }
     return make_node_ptr(node_object{std::move(container)});
   } else if (s.isArray()) {
@@ -108,34 +109,34 @@ node_object node_object::overlay_impl(node_object const& ov) const noexcept {
    * If the key is not set in the current node, just add it.
    * Otherwise overlay the base child by the overlay child.
    */
-  container_type result{value};
+  auto result = value;
   for (auto const& member : ov.value) {
     if (member.second == nullptr) {
-      result.erase(member.first);
+      result = result.erase(member.first);
     } else {
       auto& store = result[member.first];
       if (store == nullptr) {
-        store = member.second;
+        result = result.set(member.first, member.second);
       } else {
-        store = store->overlay(member.second);
+        result = result.set(member.first, store->overlay(member.second));
       }
     }
   }
-  return node_object{result};
+  return node_object{std::move(result)};
 }
 
 node_ptr node_object::set_impl(std::string const& key, node_ptr const& v) const {
-  container_type result{value};
+  auto result = value;
   if (v == nullptr) {
-    result.erase(key);
+    result = result.erase(key);
   } else {
-    result[key] = v;
+    result = result.set(key, v);
   }
 
   return make_node_ptr(node_object{std::move(result)});
 }
-node_object::node_object(std::string const& key, node_ptr const& v) {
-  value[key] = v;
+node_object::node_object(std::string const& key, node_ptr const& v) : value{} {
+  value = value.set(key, v);
 }
 
 bool node_object::operator==(node_object const& other) const noexcept {
@@ -143,7 +144,7 @@ bool node_object::operator==(node_object const& other) const noexcept {
   auto const& right = other.value;
   using value_type = node_object::container_type::value_type;
 
-  return std::equal(left.cbegin(), left.cend(), right.cbegin(), right.cend(),
+  return std::equal(left.begin(), left.end(), right.begin(), right.end(),
                     [](value_type const& left, value_type const& right) {
                       return left.first == right.first && *left.second == *right.second;
                     });
@@ -174,10 +175,10 @@ node_ptr node_array::set_impl(std::string const& key, node_ptr const& v) const {
     node_object::container_type result;
 
     for (size_t i = 0; i < value.size(); ++i) {
-      result.try_emplace(std::to_string(i), value[i]);
+      result = result.set(std::to_string(i), value[i]);
     }
 
-    result[key] = v;
+    result = result.set(key, v);
 
     return make_node_ptr(node_object{std::move(result)});
   }
