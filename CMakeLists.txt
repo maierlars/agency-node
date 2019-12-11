@@ -20,4 +20,4 @@ target_compile_options(test-tree PRIVATE "-ftemplate-backtrace-limit=0")
 
 target_link_libraries(test-tree ubsan)
 
-
+target_include_directories(test-tree PUBLIC immer)
