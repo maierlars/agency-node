@@ -10,7 +10,7 @@ add_subdirectory(deserialize)
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 
-add_executable(test-tree agency-node-test.cpp helper-immut.h operation-deserializer.h node.h node.cpp helper-strings.h node-operations.h node-conditions.h store.h deserialize/deserializer.h deserialize/test/test-types.h)
+add_executable(test-tree agency-node-test.cpp helper-immut.h operation-deserializer.h node.h node.cpp helper-strings.h node-operations.h node-conditions.h store.h deserialize/deserializer.h deserialize/test/test-types.h agent.h)
 #target_link_libraries(test-tree asan)
 target_link_libraries(test-tree pthread)
 target_link_libraries(test-tree velocypack)
