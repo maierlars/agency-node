@@ -276,12 +276,12 @@ void huge_node_test(std::string const& filename) {
   auto q = node::from_buffer_ptr(R"=({"name":"myDB", "replFact":2, "isBuilding":true})="_vpack);
 
   auto start = std::chrono::steady_clock::now();
-  for (int i = 0; i < 10000; i++) {
+  for (int i = 0; i < 1'000'000; i++) {
     p = p->set(path, q);
   }
   auto end = std::chrono::steady_clock::now();
 
-  std::cout << *p << std::endl;
+  //std::cout << *p << std::endl;
 
   std::cout << "Time " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us" << std::endl;
 }
