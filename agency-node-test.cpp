@@ -1,3 +1,4 @@
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -276,14 +277,14 @@ void huge_node_test(std::string const& filename) {
   auto q = node::from_buffer_ptr(R"=({"name":"myDB", "replFact":2, "isBuilding":true})="_vpack);
 
   auto start = std::chrono::steady_clock::now();
-  for (int i = 0; i < 1'000'000; i++) {
+  auto const n = 1'000'000;
+  for (int i = 0; i < n; i++) {
     p = p->set(path, q);
   }
   auto end = std::chrono::steady_clock::now();
 
-  //std::cout << *p << std::endl;
-
-  std::cout << "Time " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us" << std::endl;
+  std::cout << "Time " << std::setprecision(3) << (double) std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count() << "s" << std::endl;
+  std::cout << "avg  " << std::setprecision(3) << (double) std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / n << "us" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
