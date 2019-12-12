@@ -21,6 +21,7 @@ struct store_ttl {
   store_ttl(store_ttl&&) noexcept = delete;
   store_ttl& operator=(store_ttl&&) noexcept = delete;
 
+  // path *must* be normalized!
   void set_ttl(std::string_view path, clock_type::duration ttl) {
     std::unique_lock guard(ttl_queue_guard);
 
@@ -49,25 +50,28 @@ struct store_ttl {
   }
 
   void run_queue_thread() {
-    while (!stopped.load(std::memory_order_consume)) {
+    while (!stopped.load(std::memory_order_acquire)) {
       std::unique_lock guard(ttl_queue_guard);
 
       auto now = clock_type::now();
 
       std::vector<node::modify_action> remove_actions;
 
-      ttl_list.erase(std::remove(ttl_list.begin(), ttl_list.end(),
-                                 [this, &now, &remove_actions](ttl_entry const& e) {
-                                   if (e.end_of_life > now) {
-                                     remove_actions.emplace_back(std::move(e.path), remove_operator{});
-                                     return true;
-                                   }
-                                   return false;
-                                 }),
+      auto const isExpired = [this, &now, &remove_actions](ttl_entry const& e) {
+        return e.end_of_life > now;
+      };
+
+      for (auto const& it : ttl_list) {
+        if (isExpired(it)) {
+          remove_actions.emplace_back(std::move(it.path), remove_operator{});
+        }
+      }
+
+      ttl_list.erase(std::remove_if(ttl_list.begin(), ttl_list.end(), isExpired),
                      ttl_list.end());
 
       if (!remove_actions.empty()) {
-        self().write(remove_actions);
+        self().modification(remove_actions);
       }
 
       using namespace std::chrono_literals;
