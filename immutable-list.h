@@ -27,19 +27,19 @@ struct immutable_list {
     }
   };
 
-  immutable_list<T> push_front(T t) const noexcept {
+  immutable_list<T> push_front(T t) const {
     return immutable_list(std::make_shared<element_container>(head, std::move(t)));
   }
 
   template<typename... As>
-  immutable_list<T> emplace_front(As&&... a) const noexcept {
+  immutable_list<T> emplace_front(As&&... a) const {
     return immutable_list(std::make_shared<element_container>(head, std::forward<As>(a)...));
   }
 
   operator bool() const noexcept { return head.operator bool(); }
   bool empty() const noexcept { return head; }
   immutable_list<T> const tail() const noexcept { return immutable_list(head ? head->next : nullptr); }
-  immutable_list<T> tail() noexcept { return immutable_list(head ? head->next : nullptr); }
+  tail_container tail() noexcept { return tail_container(head ? head->next : nullptr); }
   T const& head() const noexcept { return head->value; }
   T& head() noexcept { return head->value; }
 

@@ -188,34 +188,32 @@ void store_test() {
   std::cout << store << std::endl;
 }
 
-std::ostream& operator<<(std::ostream &os, deserialize_error const& err) {
+std::ostream& operator<<(std::ostream& os, deserialize_error const& err) {
   os << "deserialization error: " << err.as_string();
   return os;
 }
 
-std::ostream& operator<<(std::ostream &os, std::function<node_ptr(const node_ptr&)> const&) {
+std::ostream& operator<<(std::ostream& os, std::function<node_ptr(const node_ptr&)> const&) {
   os << "std::function";
   return os;
 }
 
-std::ostream& operator<<(std::ostream &os, std::function<bool(const node_ptr&)> const&) {
+std::ostream& operator<<(std::ostream& os, std::function<bool(const node_ptr&)> const&) {
   os << "std::function";
   return os;
 }
 
-template<typename T, typename E>
-std::ostream& operator<<(std::ostream &os, result<T, E> const& r) {
-  r.visit(visitor{
-    [&os](T const& v) { os << "Value: " << v; },
-    [&os](E const& e) { os << "Error: " << e; }
-  });
+template <typename T, typename E>
+std::ostream& operator<<(std::ostream& os, result<T, E> const& r) {
+  r.visit(visitor{[&os](T const& v) { os << "Value: " << v; },
+                  [&os](E const& e) { os << "Error: " << e; }});
   return os;
 }
 
-template<typename K, typename V>
+template <typename K, typename V>
 static std::ostream& operator<<(std::ostream& os, vector_map<K, V> const& v) {
   os << "{";
-  for(auto const& item : v) {
+  for (auto const& item : v) {
     os << item.first << ':' << item.second;
   }
   os << '}';
@@ -229,9 +227,9 @@ static std::ostream& print_tuple(std::ostream& os, std::tuple<Ts...> const& t,
   (os << ... << std::get<Is>(t));
   return os;
 }
-}
+}  // namespace detail
 
-template<typename... Ts>
+template <typename... Ts>
 static std::ostream& operator<<(std::ostream& os, std::tuple<Ts...> const& t) {
   os << '[';
   ::detail::print_tuple(os, t, std::index_sequence_for<Ts...>{});
@@ -239,15 +237,15 @@ static std::ostream& operator<<(std::ostream& os, std::tuple<Ts...> const& t) {
   return os;
 }
 
-template<typename T>
-std::ostream& operator<<(std::ostream &os, std::vector<T> const& v) {
+template <typename T>
+std::ostream& operator<<(std::ostream& os, std::vector<T> const& v) {
   for (auto const& i : v) {
     os << i << std::endl;
   }
   return os;
 }
 
-std::ostream& operator<<(std::ostream &os, agency_transaction const& at) {
+std::ostream& operator<<(std::ostream& os, agency_transaction const& at) {
   os << '[' << at.operations << ',' << at.preconditions << ',' << at.client_id << ']';
   return os;
 }
@@ -255,13 +253,47 @@ std::ostream& operator<<(std::ostream &os, agency_transaction const& at) {
 void deserialize_test() {
   auto op = R"=([[{"arango/Plan/Collection": {"op":"set", "nex":{"hello":"world"}}}, {"arango/Plan/Collection":{"oldEmpy":true}}, "hello"]])="_vpack;
 
-  auto result = deserializer::deserialize_with<agency_envelope_deserializer>(Slice(op.data()));
+  auto result =
+      deserializer::deserialize_with<agency_envelope_deserializer>(Slice(op.data()));
   std::cout << result << std::endl;
+}
+
+node_ptr node_from_file(std::string const& filename) {
+  std::ifstream fs;
+  std::stringstream ss;
+  fs.open(filename);
+  ss << fs.rdbuf();
+  std::string str = ss.str();
+
+  auto data = Parser::fromJson(str);
+  return node::from_slice(data->slice());
+}
+
+void huge_node_test(std::string const& filename) {
+  node_ptr p = node_from_file(filename);
+
+  auto path = immut_list<std::string>{"arango", "Plan", "Collections", "_system", "abc"};
+  auto q = node::from_buffer_ptr(R"=({"name":"myDB", "replFact":2, "isBuilding":true})="_vpack);
+
+  auto start = std::chrono::steady_clock::now();
+  for (int i = 0; i < 10000; i++) {
+    p = p->set(path, q);
+  }
+  auto end = std::chrono::steady_clock::now();
+
+  std::cout << *p << std::endl;
+
+  std::cout << "Time " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
   // node_test();
-  //store_test();
-  deserialize_test();
+  // store_test();
+  // deserialize_test();
+
+  if (argc > 1) {
+    huge_node_test(argv[1]);
+  }
+
   return EXIT_SUCCESS;
 }
