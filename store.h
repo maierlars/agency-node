@@ -55,7 +55,7 @@ struct store_ttl {
 
       auto now = clock_type::now();
 
-      std::vector<node::modify_action> remove_actions;
+      std::vector<node::transform_action> remove_actions;
 
       auto const isExpired = [this, &now, &remove_actions](ttl_entry const& e) {
         return e.end_of_life > now;
@@ -107,12 +107,12 @@ struct store_base : public store_ttl<store_base> {
   store_base& operator=(store_base&&) noexcept = delete;
 
   node_ptr transact(std::vector<node::fold_action<bool>> const& preconditions,
-                    std::vector<node::modify_action> const& operations) {
+                    std::vector<node::transform_action> const& operations) {
     std::unique_lock modify_guard(root_modify_mutex);
     // TODO the root_modify_mutex can be unlocked as soon as the first precondition fails
     bool preconditionsOk = root->fold<bool>(preconditions, std::logical_and{}, true);
     if (preconditionsOk) {
-      return set_internal(root->modify(operations));
+      return set_internal(root->transform(operations));
     }
     return nullptr;
   }
@@ -121,9 +121,9 @@ struct store_base : public store_ttl<store_base> {
     return read()->fold<bool>(conditions, std::logical_and{}, true);
   }
 
-  node_ptr write(std::vector<node::modify_action> const& operations) {
+  node_ptr write(std::vector<node::transform_action> const& operations) {
     std::unique_lock modify_guard(root_modify_mutex);
-    return set_internal(root->modify(operations));
+    return set_internal(root->transform(operations));
   }
 
   [[deprecated]] node_ptr set(node_ptr new_root) {

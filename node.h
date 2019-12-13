@@ -235,19 +235,19 @@ struct node : public std::enable_shared_from_this<node> {
   }
 
   node_ptr set(path_slice const& path, node_ptr const& node) const;
-  bool has(path_slice const& path) const { return get(path) != nullptr; }
   node_ptr get(path_slice const& path) const noexcept;
 
+  bool has(path_slice const& path) const { return get(path) != nullptr; }
   node_ptr remove(path_slice const& path) const { return set(path, nullptr); }
 
-  using modify_operation = std::function<node_ptr(node_ptr const&)>;
-  using modify_action = std::pair<path_slice, modify_operation>;
+  using transformation = std::function<node_ptr(node_ptr const&)>;
+  using transform_action = std::pair<path_slice, transformation>;
 
   /*
    * Applies the given list of actions and returns the resulting node.
    * If one path is the prefix of another the result is undefined.
    */
-  node_ptr modify(std::vector<modify_action> const& operations) const;
+  node_ptr transform(std::vector<transform_action> const& operations) const;
 
   template <typename T>
   using fold_operator = std::function<T(node_ptr const&)>;
@@ -255,7 +255,7 @@ struct node : public std::enable_shared_from_this<node> {
   using fold_action = std::pair<path_slice, fold_operator<T>>;
 
   template <typename T>
-  T fold(std::vector<fold_action<T>> const& actions,
+  [[deprecated]] T fold(std::vector<fold_action<T>> const& actions,
          std::function<T(T const&, T const&)> f, T i = T()) const {
     for (fold_action<T> const& action : actions) {
       i = f(i, action.second(get(action.first)));

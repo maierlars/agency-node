@@ -11,6 +11,7 @@
 #include "store.h"
 
 #include "deserialize/deserializer.h"
+#include "futures.h"
 #include "operation-deserializer.h"
 
 /*
@@ -54,7 +55,7 @@ void node_test() {
 
   std::cout << *p << std::endl;
 
-  auto n1 = n->modify({
+  auto n1 = n->transform({
       {{"key"s, "hello"s}, [](node_ptr const&) { return node::value_node(7.0); }},
       {{"key"s, "foo"s}, [](node_ptr const&) { return node::value_node("42"s); }},
       {{"key"s, "foox"s, "bar"s},
@@ -64,17 +65,17 @@ void node_test() {
   std::cout << *n << std::endl;
   std::cout << *n1 << std::endl;
 
-  auto m1 = m->modify({
+  auto m1 = m->transform({
       {{"foo"s, "0"s, "bar"s},
        [](node_ptr const&) { return node::value_node(false); }},
   });
   std::cout << "m1 " << *m1 << std::endl;
-  auto m2 = m->modify({
+  auto m2 = m->transform({
       {{"foo"s, "x"s, "bar"s},
        [](node_ptr const&) { return node::value_node(false); }},
   });
   std::cout << "m2 " << *m2 << std::endl;
-  auto m3 = m->modify({
+  auto m3 = m->transform({
       {{"foo"s, "3"s, "bar"s},
        [](node_ptr const&) { return node::value_node(false); }},
   });
@@ -82,24 +83,24 @@ void node_test() {
 
   auto q = node::from_buffer_ptr(R"=({"foo":12, "bar":"hello"})="_vpack);
 
-  auto q1 = q->modify({
+  auto q1 = q->transform({
       {{"foo"s}, increment_operator{15.0}},
       {{"bar"s}, increment_operator{}},
   });
   std::cout << *q1 << std::endl;
 
-  auto q2 = q->modify({
+  auto q2 = q->transform({
       {{"foo"s}, remove_operator{}},
       {{"bar"s}, increment_operator{}},
   });
   std::cout << *q2 << std::endl;
 
-  auto q3 = q->modify({
+  auto q3 = q->transform({
       {{"foo"s}, push_operator{n}},
   });
   std::cout << *q3 << std::endl;
 
-  auto q4 = q->modify({
+  auto q4 = q->transform({
       {{"baz"s}, push_operator{n}},
   });
   std::cout << *q4 << std::endl;
@@ -109,18 +110,18 @@ void node_test() {
   auto r = node::from_buffer_ptr(R"=({"key":[1, 2, 3, 4, 5, 6]})="_vpack);
   std::cout << *r << std::endl;
 
-  auto r1 = r->modify({
+  auto r1 = r->transform({
       {{"baz"s}, pop_operator{}},  // pop on baz should not create a node_null
       {{"key"s}, pop_operator{}},
   });
   std::cout << *r1 << std::endl;
 
-  auto r2 = r->modify({
+  auto r2 = r->transform({
       {{"key"s}, shift_operator{}},
   });
   std::cout << *r2 << std::endl;
 
-  auto r3 = r->modify({
+  auto r3 = r->transform({
       {{"key"s}, prepend_operator{node::value_node(12.0)}},
   });
   std::cout << *r3 << std::endl;
@@ -128,15 +129,15 @@ void node_test() {
   auto fooBar = node::from_buffer_ptr(R"=({"foo": "bar"})="_vpack);
   auto a = node::from_buffer_ptr(
       R"=({"foo": ["a", "b", [null], 1, 2, {"foo": "bar"}, "a", [], "b", [], {"foo": "baz"}, {}, 1, 2]})="_vpack);
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::value_node(1.0)}}})
+  std::cout << *a->transform({{immut_list{"foo"s}, erase_operator{node::value_node(1.0)}}})
             << std::endl;
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::value_node("a"s)}}})
+  std::cout << *a->transform({{immut_list{"foo"s}, erase_operator{node::value_node("a"s)}}})
             << std::endl;
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::empty_array()}}})
+  std::cout << *a->transform({{immut_list{"foo"s}, erase_operator{node::empty_array()}}})
             << std::endl;
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{node::empty_object()}}})
+  std::cout << *a->transform({{immut_list{"foo"s}, erase_operator{node::empty_object()}}})
             << std::endl;
-  std::cout << *a->modify({{immut_list{"foo"s}, erase_operator{fooBar}}}) << std::endl;
+  std::cout << *a->transform({{immut_list{"foo"s}, erase_operator{fooBar}}}) << std::endl;
 
   std::cout << "fold" << std::endl;
 
@@ -287,10 +288,34 @@ void huge_node_test(std::string const& filename) {
   std::cout << "avg  " << std::setprecision(3) << (double) std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / n << "us" << std::endl;
 }
 
+future<double> half(int x) {
+  return make_future<double>((double) x / 2);
+}
+
+void future_test() {
+
+  auto [f, p] = make_promise<int>();
+
+  auto f2 = std::move(f).then([](int x) {
+    std::cout << "received " << x << std::endl;
+    return half(x);
+  }).then([](double x){
+    std::cout << "half is " << x << std::endl;
+    return x > 0;
+  });
+
+  std::move(p).set(12);
+  std::move(f2).then([](bool z) {
+    std::cout << "is it bigger than zero: " << z << std::endl;
+  });
+
+}
+
 int main(int argc, char* argv[]) {
   // node_test();
   // store_test();
   // deserialize_test();
+  future_test();
 
   if (argc > 1) {
     huge_node_test(argv[1]);

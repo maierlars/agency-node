@@ -141,7 +141,7 @@ using agency_precondition_deserialzer = deserializer::from_factory<agency_precon
 template <typename K, typename V>
 using vector_map = std::vector<std::pair<K, V>>;
 
-using operation_list = vector_map<std::string_view, node::modify_operation>;
+using operation_list = vector_map<std::string_view, node::transformation>;
 using precondition_list = vector_map<std::string_view, node::fold_operator<bool>>;
 
 struct agency_transaction {

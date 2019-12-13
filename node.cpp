@@ -351,7 +351,7 @@ node_ptr node::node_at_path(immut_list<std::string> const& path, node_ptr const&
   return make_node_ptr(node_object{head, node_at_path(tail, node)});
 }
 
-node_ptr node::modify(std::vector<std::pair<path_slice, modify_operation>> const& operations) const {
+node_ptr node::transform(std::vector<std::pair<path_slice, transformation>> const& operations) const {
   auto curNode = node_ptr{shared_from_this()};
 
   for (auto const& it : operations) {
