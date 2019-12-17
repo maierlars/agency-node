@@ -42,6 +42,7 @@ void test01() {
                                        deserializer::values::value_deserializer<double>>;
 
   auto result = deserializer::deserialize_with<deserial>(slice);
+  static_assert(std::is_same_v<decltype(result)::value_type, std::tuple<std::string, bool, double>>);
   std::cout << *slice.tape << std::endl;
 }
 
@@ -66,6 +67,8 @@ void test02() {
       std::vector>;
 
   auto result = deserializer::deserialize_with<deserial>(slice);
+
+  static_assert(std::is_same_v<decltype(result)::value_type, std::vector<std::variant<std::string, std::string>> >);
   if (!result) {
     std::cerr << result.error().as_string() << std::endl;
   }

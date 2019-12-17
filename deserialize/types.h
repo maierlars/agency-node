@@ -23,6 +23,8 @@ class result {
 
  public:
   using variant_type = std::variant<T, E>;
+  using value_type = T;
+  using error_type = E;
 
   result(T t) : value(std::move(t)) {}
   result(E e) : value(std::move(e)) {}

@@ -13,14 +13,14 @@ namespace deserializer {
  * homogeneous types. Each entry is deserialized with the given deserializer.
  */
 template <typename D, template <typename> typename C>
-using array_deserializer_constructed_type = C<typename D::constructed_type>;
+using array_deserializer_container_type = C<typename D::constructed_type>;
 
 template <typename D, template <typename> typename C,
-          typename F = utilities::identity_factory<array_deserializer_constructed_type<D, C>>>
+          typename F = utilities::identity_factory<array_deserializer_container_type<D, C>>>
 struct array_deserializer {
   using plan = array_deserializer<D, C, F>;
   using factory = F;
-  using constructed_type = array_deserializer_constructed_type<D, C>;
+  using constructed_type = array_deserializer_container_type<D, C>;
 };
 
 namespace executor {
@@ -50,6 +50,7 @@ struct deserialize_plan_executor<array_deserializer<D, C, F>, H> {
             .wrap("at array index "s + std::to_string(index))
             .trace(index);
       }
+      index++;
     }
 
     return result_type{std::move(result)};
