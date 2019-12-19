@@ -27,8 +27,8 @@ namespace executor {
 
 template <typename D, template <typename> typename C, typename F, typename H>
 struct deserialize_plan_executor<array_deserializer<D, C, F>, H> {
-  using container_type = typename array_deserializer<D, C, F>::constructed_type;
-  using tuple_type = std::tuple<container_type>;
+  using proxy_type = typename array_deserializer<D, C, F>::constructed_type;
+  using tuple_type = std::tuple<proxy_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
   static auto unpack(slice_type slice, typename H::state_type) -> result_type {
@@ -38,7 +38,7 @@ struct deserialize_plan_executor<array_deserializer<D, C, F>, H> {
 
     using namespace std::string_literals;
     std::size_t index = 0;
-    container_type result;
+    proxy_type result;
 
     for (auto const& member : ::deserializer::array_iterator(slice)) {
       auto member_result = deserialize_with<D, hints::hint_list_empty>(member);

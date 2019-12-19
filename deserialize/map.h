@@ -37,11 +37,11 @@ namespace executor {
 
 template <typename D, template <typename, typename> typename C, typename F, typename K, typename H>
 struct deserialize_plan_executor<map_deserializer<D, C, K, F>, H> {
-  using container_type = typename map_deserializer<D, C, K, F>::constructed_type;
-  using tuple_type = std::tuple<container_type>;
+  using proxy_type = typename map_deserializer<D, C, K, F>::constructed_type;
+  using tuple_type = std::tuple<proxy_type>;
   using result_type = result<tuple_type, deserialize_error>;
   static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
-    container_type result;
+    proxy_type result;
     using namespace std::string_literals;
 
     if (!s.isObject()) {

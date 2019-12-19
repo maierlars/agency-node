@@ -95,9 +95,18 @@ struct unpack_proxy {
   using factory = make_unique_factory<P>;
 };
 
+template<typename D, typename P>
+struct deserializer::executor::plan_result_tuple<unpack_proxy<D, P>> {
+  using type = std::tuple<P>;
+};
+
 template <typename D, typename P, typename H>
 struct deserializer::executor::deserialize_plan_executor<unpack_proxy<D, P>, H> {
-  static auto unpack(::deserializer::slice_type s, typename H::state_type h) {
+  using proxy_type = typename D::constructed_type;
+  using tuple_type = std::tuple<proxy_type>;
+  using result_type = result<tuple_type, deserialize_error>;
+
+  static auto unpack(::deserializer::slice_type s, typename H::state_type h) -> result_type {
     return deserialize_with<D, H>(s, h).map([](typename D::constructed_type&& v) {
       return std::make_tuple(std::move(v));
     });
@@ -115,24 +124,17 @@ void test03() {
   struct recursive_deserializer {
     using plan = deserializer::map_deserializer<
         deserializer::conditional_deserializer<
-            deserializer::condition_deserializer_pair<
-                deserializer::is_object_condition,
-                unpack_proxy<recursive_deserializer, deserialized_type>
-            >,
-            deserializer::conditional_default<
-                deserializer::values::value_deserializer<std::string>
-            >
-        >,
+            deserializer::condition_deserializer_pair<deserializer::is_object_condition, unpack_proxy<recursive_deserializer, deserialized_type>>,
+            deserializer::conditional_default<deserializer::values::value_deserializer<std::string>>>,
         my_map>;
     using factory = deserializer::utilities::constructor_factory<deserialized_type>;
     using constructed_type = deserialized_type;
   };
 
-  auto buffer = R"=({"a":"b", "c":{"d":{"e":false}}})="_vpack;
+  auto buffer = R"=({"a":"b", "c":{"d":{"e":"false"}}})="_vpack;
   auto slice = deserializer::test::recording_slice::from_buffer(buffer);
 
   auto result = deserializer::deserialize_with<recursive_deserializer>(slice);
-
 
   if (!result) {
     std::cerr << result.error().as_string() << std::endl;

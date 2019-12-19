@@ -1,12 +1,11 @@
 #ifndef VELOCYPACK_DESERIALIZE_WITH_H
 #define VELOCYPACK_DESERIALIZE_WITH_H
+#include "errors.h"
 #include "gadgets.h"
 #include "hints.h"
 #include "plan-executor.h"
 #include "types.h"
 #include "vpack-types.h"
-#include "errors.h"
-
 
 namespace deserializer {
 
@@ -58,21 +57,23 @@ auto deserialize_with(F& factory, ::deserializer::slice_type slice,
   using factory_type = typename D::factory;
   using result_type = result<typename D::constructed_type, deserialize_error>;
 
-  using plan_result_type = typename executor::plan_result_tuple<plan>::type;
+  using plan_unpack_result = typename executor::plan_result_tuple<plan>::type;
+  using plan_result_type = result<plan_unpack_result, deserialize_error>;
 
-  static_assert(detail::gadgets::is_applicable_r<typename D::constructed_type, factory_type, plan_result_type>::value,
+  static_assert(detail::gadgets::is_applicable_r<typename D::constructed_type, factory_type, plan_unpack_result>::value,
                 "factory is not callable with result of plan unpacking");
 
   static_assert(detail::gadgets::is_complete_type_v<executor::deserialize_plan_executor<plan, H>>,
                 "plan type does not specialize deserialize_plan_executor. You "
                 "will get an incomplete type error.");
 
-  /*static_assert(std::is_invocable_r_v<result<plan_result_type, deserialize_error>,
-                                      decltype(&executor::deserialize_plan_executor<plan, H>::unpack), ::deserializer::slice_type, typename H::state_type>,
-                "executor::unpack does not have the correct signature");*/
+  static_assert(std::is_invocable_r_v<plan_result_type, decltype(&executor::deserialize_plan_executor<plan, H>::unpack),
+                                    ::deserializer::slice_type, typename H::state_type>,
+                "executor::unpack does not have the correct signature");
 
   // Simply forward to the plan_executor.
-  auto plan_result = executor::deserialize_plan_executor<plan, H>::unpack(slice, hints);
+  plan_result_type plan_result =
+      executor::deserialize_plan_executor<plan, H>::unpack(slice, hints);
   if (plan_result) {
     // if successfully deserialized, apply to the factory.
     return result_type(std::apply(factory, std::move(plan_result).get()));
