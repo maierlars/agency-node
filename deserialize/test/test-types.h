@@ -192,6 +192,14 @@ struct object_iterator {
 
   object_iterator begin() const { return {iter.begin(), tape}; }
   object_iterator end() const { return {iter.end(), tape}; }
+  object_iterator& operator++() {
+    iter.operator++();
+    return *this;
+  }
+
+  bool operator!=(object_iterator const& other) const {
+    return iter.operator!=(other.iter);
+  }
 
   pair operator*() const {
     auto internal = iter.operator*();

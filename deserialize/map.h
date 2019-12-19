@@ -6,8 +6,6 @@
 
 namespace deserializer {
 
-namespace map {
-
 /*
  * Map deserializer deserializes an object by constructing a container that maps
  * keys (std::string_view) to constructed types from a second deserializer.
@@ -21,6 +19,12 @@ using map_deserializer_constructed_type =
 
 using default_key_read = value_reader<std::string>;
 
+/*
+ * D - value deserializer
+ * C - container type
+ * K - key reader (default = value_reader<std::string>)
+ * F - factory (default = identity_factor, i.e. returns container type)
+ */
 template <typename D, template <typename, typename> typename C, typename K = default_key_read,
           typename F = utilities::identity_factory<map_deserializer_constructed_type<C, D, K>>>
 struct map_deserializer {
@@ -29,13 +33,11 @@ struct map_deserializer {
   using constructed_type = map_deserializer_constructed_type<C, D, K>;
 };
 
-}  // namespace map
-
 namespace executor {
 
 template <typename D, template <typename, typename> typename C, typename F, typename K, typename H>
-struct deserialize_plan_executor<map::map_deserializer<D, C, K, F>, H> {
-  using container_type = typename map::map_deserializer<D, C, K, F>::constructed_type;
+struct deserialize_plan_executor<map_deserializer<D, C, K, F>, H> {
+  using container_type = typename map_deserializer<D, C, K, F>::constructed_type;
   using tuple_type = std::tuple<container_type>;
   using result_type = result<tuple_type, deserialize_error>;
   static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
@@ -62,7 +64,7 @@ struct deserialize_plan_executor<map::map_deserializer<D, C, K, F>, H> {
       }
 
       result.insert(result.cend(),
-                    std::make_pair(key_result.get(), member_result.get()));
+                    std::make_pair(std::move(key_result).get(), std::move(member_result).get()));
     }
 
     return result_type{std::move(result)};

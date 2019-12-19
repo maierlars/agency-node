@@ -20,6 +20,17 @@ struct attribute_deserializer {
   using factory = utilities::identity_factory<constructed_type>;
 };
 
+template<const char N[], typename V>
+struct attribute_value_condition {
+  static bool test(::deserializer::slice_type s) noexcept {
+    // TODO add hints for this
+    if (s.isObject()) {
+      return V::compare(s.get(N));
+    }
+    return false;
+  }
+};
+
 namespace executor {
 
 template <const char N[], typename D, typename H>

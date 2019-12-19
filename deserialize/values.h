@@ -71,6 +71,13 @@ struct value_comparator<string_value<V>> {
   }
 };
 
+template<typename VC>
+struct value_comparator_condition {
+  static bool test(::deserializer::slice_type s) noexcept {
+    return VC::compare(s);
+  }
+};
+
 /*
  * Uses a value reader to deserialize the slice.
  */

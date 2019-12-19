@@ -4,6 +4,7 @@
 
 #include "attribute.h"
 #include "array.h"
+#include "conditional.h"
 #include "errors.h"
 #include "fixed-order.h"
 #include "try-alternatives.h"

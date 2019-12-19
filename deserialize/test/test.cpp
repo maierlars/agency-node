@@ -1,4 +1,4 @@
-
+#include <map>
 
 #define DESERIALIZER_NO_VPACK_TYPES
 #define DESERIALIZER_SET_TEST_TYPES
@@ -42,7 +42,8 @@ void test01() {
                                        deserializer::values::value_deserializer<double>>;
 
   auto result = deserializer::deserialize_with<deserial>(slice);
-  static_assert(std::is_same_v<decltype(result)::value_type, std::tuple<std::string, bool, double>>);
+  static_assert(
+      std::is_same_v<decltype(result)::value_type, std::tuple<std::string, bool, double>>);
   std::cout << *slice.tape << std::endl;
 }
 
@@ -57,18 +58,82 @@ void test02() {
   constexpr static const char bar_name[] = "bar";
   constexpr static const char foo_name[] = "foo";
 
-  using deserial = deserializer::array_deserializer<
-      deserializer::field_value_dependent_deserializer<
-          op_name,
-          deserializer::value_deserializer_pair<
-              deserializer::values::string_value<bar_name>, deserializer::attribute_deserializer<op_name, deserializer::values::value_deserializer<std::string>>>,
-          deserializer::value_deserializer_pair<
-              deserializer::values::string_value<foo_name>, deserializer::attribute_deserializer<op_name, deserializer::values::value_deserializer<std::string>>>>,
-      std::vector>;
+  using op_deserial =
+      deserializer::attribute_deserializer<op_name, deserializer::values::value_deserializer<std::string>>;
+
+  using prec_deserial_pair =
+      deserializer::value_deserializer_pair<deserializer::values::string_value<bar_name>, op_deserial>;
+
+  using deserial =
+      deserializer::array_deserializer<deserializer::field_value_dependent_deserializer<op_name, prec_deserial_pair, prec_deserial_pair>,
+                                       std::vector>;
 
   auto result = deserializer::deserialize_with<deserial>(slice);
 
-  static_assert(std::is_same_v<decltype(result)::value_type, std::vector<std::variant<std::string, std::string>> >);
+  static_assert(
+      std::is_same_v<decltype(result)::value_type, std::vector<std::variant<std::string, std::string>>>);
+  if (!result) {
+    std::cerr << result.error().as_string() << std::endl;
+  }
+  std::cout << *slice.tape << std::endl;
+}
+
+template <typename P>
+struct make_unique_factory {
+  using constructed_type = std::unique_ptr<P>;
+
+  template <typename... S>
+  auto operator()(S&&... s) -> constructed_type {
+    return std::make_unique<P>(std::forward<S>(s)...);
+  }
+};
+
+template <typename D, typename P = D>
+struct unpack_proxy {
+  using constructed_type = std::unique_ptr<P>;
+  using plan = unpack_proxy<D, P>;
+  using factory = make_unique_factory<P>;
+};
+
+template <typename D, typename P, typename H>
+struct deserializer::executor::deserialize_plan_executor<unpack_proxy<D, P>, H> {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type h) {
+    return deserialize_with<D, H>(s, h).map([](typename D::constructed_type&& v) {
+      return std::make_tuple(std::move(v));
+    });
+  }
+};
+
+template <typename K, typename V>
+using my_map = std::unordered_map<K, V>;
+
+void test03() {
+  struct deserialized_type {
+    my_map<std::string, std::variant<std::unique_ptr<deserialized_type>, std::string>> value;
+  };
+
+  struct recursive_deserializer {
+    using plan = deserializer::map_deserializer<
+        deserializer::conditional_deserializer<
+            deserializer::condition_deserializer_pair<
+                deserializer::is_object_condition,
+                unpack_proxy<recursive_deserializer, deserialized_type>
+            >,
+            deserializer::conditional_default<
+                deserializer::values::value_deserializer<std::string>
+            >
+        >,
+        my_map>;
+    using factory = deserializer::utilities::constructor_factory<deserialized_type>;
+    using constructed_type = deserialized_type;
+  };
+
+  auto buffer = R"=({"a":"b", "c":{"d":{"e":false}}})="_vpack;
+  auto slice = deserializer::test::recording_slice::from_buffer(buffer);
+
+  auto result = deserializer::deserialize_with<recursive_deserializer>(slice);
+
+
   if (!result) {
     std::cerr << result.error().as_string() << std::endl;
   }
@@ -78,4 +143,5 @@ void test02() {
 int main(int argc, char* argv[]) {
   test01();
   test02();
+  test03();
 }

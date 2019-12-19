@@ -67,15 +67,15 @@ auto deserialize_with(F& factory, ::deserializer::slice_type slice,
                 "plan type does not specialize deserialize_plan_executor. You "
                 "will get an incomplete type error.");
 
-  static_assert(std::is_invocable_r_v<result<plan_result_type, deserialize_error>,
+  /*static_assert(std::is_invocable_r_v<result<plan_result_type, deserialize_error>,
                                       decltype(&executor::deserialize_plan_executor<plan, H>::unpack), ::deserializer::slice_type, typename H::state_type>,
-                "executor::unpack does not have the correct signature");
+                "executor::unpack does not have the correct signature");*/
 
   // Simply forward to the plan_executor.
   auto plan_result = executor::deserialize_plan_executor<plan, H>::unpack(slice, hints);
   if (plan_result) {
     // if successfully deserialized, apply to the factory.
-    return result_type(std::apply(factory, plan_result.get()));
+    return result_type(std::apply(factory, std::move(plan_result).get()));
   }
   // otherwise forward the error
   return result_type(std::move(plan_result).error());

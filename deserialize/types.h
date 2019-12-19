@@ -100,7 +100,7 @@ class result {
     if (!ok()) {
       return result<T, R>(error_tag, f(std::move(*this).error()));
     }
-    return get();
+    return std::move(*this).get();
   }
 
   template<typename F>
