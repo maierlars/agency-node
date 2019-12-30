@@ -2,6 +2,7 @@
 
 #define DESERIALIZER_NO_VPACK_TYPES
 #define DESERIALIZER_SET_TEST_TYPES
+
 #include "test-types.h"
 
 #include "deserializer.h"
@@ -51,7 +52,7 @@ template <typename T>
 using my_vector = std::vector<T>;
 
 void test02() {
-  auto buffer = R"=([{"op":"bar"}, {"op":"fooz"}])="_vpack;
+  auto buffer = R"=([{"op":"bar"}, {"op":"foo"}])="_vpack;
   auto slice = deserializer::test::recording_slice::from_buffer(buffer);
 
   constexpr static const char op_name[] = "op";
@@ -63,9 +64,11 @@ void test02() {
 
   using prec_deserial_pair =
       deserializer::value_deserializer_pair<deserializer::values::string_value<bar_name>, op_deserial>;
+  using prec_deserial_pair_foo =
+      deserializer::value_deserializer_pair<deserializer::values::string_value<foo_name>, op_deserial>;
 
   using deserial =
-      deserializer::array_deserializer<deserializer::field_value_dependent_deserializer<op_name, prec_deserial_pair, prec_deserial_pair>,
+      deserializer::array_deserializer<deserializer::field_value_dependent_deserializer<op_name, prec_deserial_pair, prec_deserial_pair_foo>,
                                        std::vector>;
 
   auto result = deserializer::deserialize_with<deserial>(slice);
@@ -95,7 +98,7 @@ struct unpack_proxy {
   using factory = make_unique_factory<P>;
 };
 
-template<typename D, typename P>
+template <typename D, typename P>
 struct deserializer::executor::plan_result_tuple<unpack_proxy<D, P>> {
   using type = std::tuple<P>;
 };

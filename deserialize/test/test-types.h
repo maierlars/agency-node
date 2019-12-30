@@ -82,7 +82,7 @@ struct recording_slice {
 
   std::shared_ptr<slice_access_tape> tape;
   arangodb::velocypack::Slice slice;
-  std::string prefix = ".";
+  std::string prefix = "";
 
   bool isNumber() const;
 
@@ -179,19 +179,19 @@ struct recording_slice {
 
 struct object_iterator {
   object_iterator(arangodb::velocypack::ObjectIterator const& o,
-                  std::shared_ptr<slice_access_tape> tape)
-      : iter(o), tape(std::move(tape)) {}
+                  std::shared_ptr<slice_access_tape> tape, std::string prefix)
+      : iter(o), tape(std::move(tape)), prefix(std::move(prefix)) {}
   object_iterator(recording_slice& slice, bool useSequentialIteration = false)
       : iter(slice.slice, useSequentialIteration),
         tape(slice.tape),
-        prefix(slice.prefix + "@iter"){};
+        prefix(slice.prefix){};
 
   struct pair {
     recording_slice key, value;
   };
 
-  object_iterator begin() const { return {iter.begin(), tape}; }
-  object_iterator end() const { return {iter.end(), tape}; }
+  object_iterator begin() const { return {iter.begin(), tape, prefix}; }
+  object_iterator end() const { return {iter.end(), tape, prefix}; }
   object_iterator& operator++() {
     iter.operator++();
     return *this;

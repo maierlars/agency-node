@@ -21,7 +21,6 @@
 #include "deserialize/deserializer.h"
 #include "node-operations.h"
 
-using namespace deserializer::map;
 using namespace deserializer::values;
 using deserializer::value_reader;
 
@@ -150,11 +149,11 @@ struct agency_transaction {
   std::string client_id;
 };
 
-using operation_deserializer = map_deserializer<
+using operation_deserializer = deserializer::map_deserializer<
     agency_operation_deserialzer,
     vector_map,
     value_reader<std::string_view>>;
-using precondition_deserializer = map_deserializer<
+using precondition_deserializer = deserializer::map_deserializer<
     agency_precondition_deserialzer,
     vector_map,
     value_reader<std::string_view>>;
