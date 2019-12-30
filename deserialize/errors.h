@@ -40,6 +40,9 @@ struct error {
   std::vector<access_type> backtrace;
   std::string message;
 
+  [[nodiscard]] bool is_error() const { return !message.empty(); }
+  operator bool() const { return is_error(); }
+
   error& trace(std::string field) & {
     backtrace.emplace_back(std::in_place_type<field_name>, std::move(field));
     return *this;

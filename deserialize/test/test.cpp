@@ -123,7 +123,7 @@ void test04() {
       deserializer::utilities::constructing_deserializer<non_default_constructible_type, deserializer::values::value_deserializer<double>>,
       deserializer::utilities::constructing_deserializer<non_copyable_type, deserializer::values::value_deserializer<double>>>;
 
-  auto buffer = R"=([12])="_vpack;
+  auto buffer = R"=([12, 11, 13])="_vpack;
   auto slice = deserializer::test::recording_slice::from_buffer(buffer);
 
   auto result = deserializer::deserialize_with<deserial>(slice);
@@ -134,8 +134,90 @@ void test04() {
   std::cout << *slice.tape << std::endl;
 }
 
+/* clang-format off */
+
+struct graph_options {
+  std::optional<std::string_view> smartGraphAttribute;
+  uint32_t numberOfShards; // 1
+  uint32_t replicationFactor; // 1
+  uint32_t minReplicationFactor; // default = 1
+};
+
+constexpr const char str_smart_graph_attribute[] = "smartGraphAttribute";
+constexpr const char str_number_of_shards[] = "numberOfShards";
+constexpr const char str_replication_factor[] = "replicationFactor";
+constexpr const char str_min_replication_factor[] = "minReplicationFactor";
+
+using graph_options_deserializer = deserializer::utilities::constructing_deserializer<graph_options, deserializer::parameter_list<
+    deserializer::factory_optional_parameter<str_smart_graph_attribute, std::string_view>,
+    deserializer::factory_simple_parameter<str_number_of_shards, uint32_t, false, deserializer::values::numeric_value<uint32_t, 1>>,
+    deserializer::factory_simple_parameter<str_replication_factor, uint32_t, false, deserializer::values::numeric_value<uint32_t, 1>>,
+    deserializer::factory_simple_parameter<str_min_replication_factor, uint32_t, false, deserializer::values::numeric_value<uint32_t, 1>>
+>>;
+
+struct graph_edge_definition {
+  std::string_view collection;
+  std::vector<std::string_view> from;
+  std::vector<std::string_view> to;
+};
+
+
+constexpr const char str_collection[] = "collection";
+constexpr const char str_from[] = "from";
+constexpr const char str_to[] = "to";
+
+using string_view_array_deserializer = deserializer::array_deserializer<deserializer::values::value_deserializer<std::string_view>, my_vector>;
+
+using graph_edge_definition_deserializer = deserializer::utilities::constructing_deserializer<graph_edge_definition, deserializer::parameter_list<
+    deserializer::factory_simple_parameter<str_collection, std::string_view, true>,
+    deserializer::factory_deserialized_parameter<str_from, string_view_array_deserializer, true>,
+    deserializer::factory_deserialized_parameter<str_to, string_view_array_deserializer, true>
+>>;
+
+using graph_edge_definition_list = std::vector<graph_edge_definition>;
+using graph_edge_definition_list_deserializer = deserializer::array_deserializer<graph_edge_definition_deserializer, my_vector>;
+
+struct graph_definition {
+  std::string_view name;
+  bool is_smart;
+  graph_edge_definition_list edgeDefinitions;
+  std::optional<graph_options> options;
+};
+
+constexpr const char str_name[] = "name";
+constexpr const char str_is_smart[] = "isSmart";
+constexpr const char str_edge_definitions[] = "edgeDefinitions";
+constexpr const char str_options[] = "options";
+
+using graph_definition_deserializer = deserializer::utilities::constructing_deserializer<graph_definition, deserializer::parameter_list<
+    deserializer::factory_simple_parameter<str_name, std::string_view, true>,
+    deserializer::factory_simple_parameter<str_is_smart, bool, false, deserializer::values::numeric_value<bool, false>>,
+    deserializer::factory_deserialized_parameter<str_edge_definitions, graph_edge_definition_list_deserializer, true>,
+    deserializer::factory_deserialized_parameter<str_options, graph_options_deserializer, false>
+>>;
+
+
+
+/* clang-format on */
+
+void test05() {
+  auto buffer = R"=({"name":"myGraph","someValue":false,"edgeDefinitions":[{"collection":"edges","from":["startVertices"],"to":["endVertices"]},{"collection":"edges","from":["startVertices"],"to":["bla"]}],"options":{"replicationFactor":5,"minReplicationFactor":2}})="_vpack;
+  auto slice = deserializer::test::recording_slice::from_buffer(buffer);
+
+  auto result = deserializer::deserialize_with<graph_definition_deserializer>(slice);
+
+  if (!result) {
+    std::cerr << result.error().as_string() << std::endl;
+  }
+  std::cout << *slice.tape << std::endl;
+}
+
+
+
 int main(int argc, char* argv[]) {
   test01();
   test02();
   test03();
+  test04();
+  test05();
 }

@@ -43,6 +43,25 @@ struct factory_slice_parameter {
   constexpr static auto default_value = ::deserializer::slice_type::nullSlice();
 };
 
+template <char const N[], typename T>
+struct factory_optional_parameter {
+  using value_type = std::optional<T>;
+  constexpr static auto name = N;
+  constexpr static auto default_value = value_type{};
+};
+
+template <const char N[], typename D, bool required>
+struct factory_deserialized_parameter {
+  using value_type = typename D::constructed_type;
+  constexpr static auto name = N;
+};
+
+template <const char N[], typename D>
+struct factory_deserialized_parameter<N, D, false> {
+  using value_type = std::optional<typename D::constructed_type>;
+  constexpr static auto name = N;
+};
+
 /*
  * expected_value does not generate a additional parameter to the factory but instead
  * checks if the field with name `N` has the expected value `V`. If not, deserialization fails.
@@ -99,6 +118,59 @@ struct parameter_executor<factory_simple_parameter<N, T, required, default_v>, H
   }
 };
 
+template <char const N[], typename T, typename H>
+struct parameter_executor<factory_optional_parameter<N, T>, H> {
+  using value_type = std::optional<T>;
+  using result_type = result<std::pair<value_type, bool>, deserialize_error>;
+  constexpr static bool has_value = true;
+
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+    using namespace std::string_literals;
+
+    auto value_slice = s.get(N);
+    if (!value_slice.isNone()) {
+      ensure_value_reader<T>{};
+
+      return value_reader<T>::read(value_slice)
+          .map([](T&& t) { return std::make_pair(std::move(t), true); })
+          .wrap([](deserialize_error&& e) {
+            return std::move(e.wrap("when reading value of field "s + N).trace(N));
+          });
+    }
+
+    return result_type{std::make_pair(value_type{}, false)};
+  }
+};
+
+template <char const N[], typename D, bool required, typename H>
+struct parameter_executor<factory_deserialized_parameter<N, D, required>, H> {
+  using parameter_type = factory_deserialized_parameter<N, D, required>;
+  using value_type = typename parameter_type::value_type;
+  using result_type = result<std::pair<value_type, bool>, deserialize_error>;
+  constexpr static bool has_value = true;
+
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+    using namespace std::string_literals;
+
+    auto value_slice = s.get(N);
+    if (!value_slice.isNone()) {
+      return ::deserializer::deserialize_with<D>(value_slice)
+          .map([](typename D::constructed_type&& t) {
+            return std::make_pair(std::move(t), true);
+          })
+          .wrap([](deserialize_error&& e) {
+            return std::move(e.wrap("when reading value of field "s + N).trace(N));
+          });
+    }
+
+    if constexpr (required) {
+      return result_type{deserialize_error{"field `"s + N + "` is required"}};
+    } else {
+      return result_type{std::make_pair(value_type{}, false)};
+    }
+  }
+};
+
 template <char const N[], bool required, typename H>
 struct parameter_executor<factory_slice_parameter<N, required>, H> {
   using parameter_type = factory_slice_parameter<N, required>;
@@ -148,8 +220,8 @@ struct parameter_executor<expected_value<N, V>, H> {
 };
 
 /*
- * I counts the number of visited fields.
- * K encodes the offset in the result tuple.
+ * I encodes the offset in the result tuple.
+ * K counts the number of visited fields.
  */
 
 template <int I, int K, typename...>

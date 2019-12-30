@@ -29,6 +29,19 @@ struct value_reader<double> {
 };
 
 template <>
+struct value_reader<unsigned int> {
+  using value_type = unsigned int;
+  using result_type = result<unsigned int, deserialize_error>;
+  static result_type read(::deserializer::slice_type s) {
+    if (s.isNumber<unsigned int>()) {
+      return result_type{s.getNumber<unsigned int>()};
+    }
+
+    return result_type{deserialize_error{"value is not a unsigned int"}};
+  }
+};
+
+template <>
 struct value_reader<std::string> {
   using value_type = std::string;
   using result_type = result<std::string, deserialize_error>;

@@ -84,30 +84,57 @@ struct deserialize_plan_executor<fixed_order_deserializer<Ds...>, H> {
       return result_type{deserialize_error{"expected array"}};
     }
 
-    if (s.length() != expected_array_length) {
+    /*if (s.length() != expected_array_length) {
       return result_type{deserialize_error{
           "bad array length, found: "s + std::to_string(s.length()) +
           ", expected: " + std::to_string(expected_array_length)}};
-    }
+    }*/
     return unpack_internal(s, std::index_sequence_for<Ds...>{});
   }
 
  private:
   template <std::size_t... I>
-  static auto unpack_internal(::deserializer::slice_type s,
-                              std::index_sequence<I...>) -> result_type {
+  static auto unpack_internal(::deserializer::slice_type s, std::index_sequence<I...>)
+      -> result_type {
     using namespace ::deserializer::detail;
+    using namespace std::string_literals;
 
     gadgets::tuple_to_opts_t<value_type> values;
     deserialize_error error;
 
     ::deserializer::array_iterator iter(s);
-    bool result =
-        (deserialize_with<Ds>(*iter++).visit(
-             detail::fixed_order_deserializer_executor_visitor<I, typename Ds::constructed_type, deserialize_error>(
-                 std::get<I>(values), error)) &&
-         ...);
 
+    bool result = ([&error](::deserializer::array_iterator const& iter, auto& value) {
+      if (error) {
+        return false;
+      }
+
+      if (iter != iter.end()) {
+        return deserialize_with<Ds>(*iter).visit(
+            detail::fixed_order_deserializer_executor_visitor<I, typename Ds::constructed_type, deserialize_error>(
+                value, error));
+      } else {
+        error = deserialize_error{"bad array length, found: "s + std::to_string(I) +
+                                  ", expected: " + std::to_string(expected_array_length)};
+        return false;
+      }
+    }(iter++, std::get<I>(values)) &&
+                   ...);
+
+    if (iter != iter.end()) {
+      result = false;
+      error =
+          deserialize_error{"bad array length, excess elements, expected: " +
+                            std::to_string(expected_array_length)};
+    }
+
+    /*
+        bool result =
+            (deserialize_with<Ds>(*iter++).visit(
+                 detail::fixed_order_deserializer_executor_visitor<I, typename
+       Ds::constructed_type, deserialize_error>( std::get<I>(values), error)) &&
+             ...);
+    */
     if (result) {
       return result_type{gadgets::unpack_opt_tuple(std::move(values))};
     }
