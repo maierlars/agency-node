@@ -44,8 +44,10 @@ struct deserialize_plan_executor<map_deserializer<D, C, K, F>, H> {
     proxy_type result;
     using namespace std::string_literals;
 
-    if (!s.isObject()) {
-      return result_type{deserialize_error{"expected object"}};
+    if constexpr (!hints::hint_is_object<H>) {
+      if (!s.isObject()) {
+        return result_type{deserialize_error{"expected object"}};
+      }
     }
 
     for (auto const& member : ::deserializer::object_iterator(s, true)) {  // use sequential deserialization

@@ -2,7 +2,8 @@
 #define DESERIALIZER_TYPES_H
 #include <variant>
 
-struct unit_type {};
+//struct unit_type {};
+using unit_type = std::monostate;
 
 struct error_tag_t {};
 struct value_tag_t {};

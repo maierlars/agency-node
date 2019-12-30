@@ -33,6 +33,11 @@ static inline Buffer<uint8_t> operator"" _vpack(const char* json, size_t) {
   return vpackFromJsonString(json);
 }
 
+template <typename T>
+using my_vector = std::vector<T>;
+template <typename K, typename V>
+using my_map = std::unordered_map<K, V>;
+
 void test01() {
   auto buffer = R"=(["hello", true, 123.4])="_vpack;
   auto slice = deserializer::test::recording_slice::from_buffer(buffer);
@@ -47,9 +52,6 @@ void test01() {
       std::is_same_v<decltype(result)::value_type, std::tuple<std::string, bool, double>>);
   std::cout << *slice.tape << std::endl;
 }
-
-template <typename T>
-using my_vector = std::vector<T>;
 
 void test02() {
   auto buffer = R"=([{"op":"bar"}, {"op":"foo"}])="_vpack;
@@ -68,8 +70,7 @@ void test02() {
       deserializer::value_deserializer_pair<deserializer::values::string_value<foo_name>, op_deserial>;
 
   using deserial =
-      deserializer::array_deserializer<deserializer::field_value_dependent_deserializer<op_name, prec_deserial_pair, prec_deserial_pair_foo>,
-                                       std::vector>;
+      deserializer::array_deserializer<deserializer::field_value_dependent_deserializer<op_name, prec_deserial_pair, prec_deserial_pair_foo>, my_vector>;
 
   auto result = deserializer::deserialize_with<deserial>(slice);
 
@@ -81,44 +82,6 @@ void test02() {
   std::cout << *slice.tape << std::endl;
 }
 
-template <typename P>
-struct make_unique_factory {
-  using constructed_type = std::unique_ptr<P>;
-
-  template <typename... S>
-  auto operator()(S&&... s) -> constructed_type {
-    return std::make_unique<P>(std::forward<S>(s)...);
-  }
-};
-
-template <typename D, typename P = D>
-struct unpack_proxy {
-  using constructed_type = std::unique_ptr<P>;
-  using plan = unpack_proxy<D, P>;
-  using factory = make_unique_factory<P>;
-};
-
-template <typename D, typename P>
-struct deserializer::executor::plan_result_tuple<unpack_proxy<D, P>> {
-  using type = std::tuple<P>;
-};
-
-template <typename D, typename P, typename H>
-struct deserializer::executor::deserialize_plan_executor<unpack_proxy<D, P>, H> {
-  using proxy_type = typename D::constructed_type;
-  using tuple_type = std::tuple<proxy_type>;
-  using result_type = result<tuple_type, deserialize_error>;
-
-  static auto unpack(::deserializer::slice_type s, typename H::state_type h) -> result_type {
-    return deserialize_with<D, H>(s, h).map([](typename D::constructed_type&& v) {
-      return std::make_tuple(std::move(v));
-    });
-  }
-};
-
-template <typename K, typename V>
-using my_map = std::unordered_map<K, V>;
-
 void test03() {
   struct deserialized_type {
     my_map<std::string, std::variant<std::unique_ptr<deserialized_type>, std::string>> value;
@@ -127,7 +90,7 @@ void test03() {
   struct recursive_deserializer {
     using plan = deserializer::map_deserializer<
         deserializer::conditional_deserializer<
-            deserializer::condition_deserializer_pair<deserializer::is_object_condition, unpack_proxy<recursive_deserializer, deserialized_type>>,
+            deserializer::condition_deserializer_pair<deserializer::is_object_condition, deserializer::unpack_proxy<recursive_deserializer, deserialized_type>>,
             deserializer::conditional_default<deserializer::values::value_deserializer<std::string>>>,
         my_map>;
     using factory = deserializer::utilities::constructor_factory<deserialized_type>;
@@ -138,6 +101,32 @@ void test03() {
   auto slice = deserializer::test::recording_slice::from_buffer(buffer);
 
   auto result = deserializer::deserialize_with<recursive_deserializer>(slice);
+
+  if (!result) {
+    std::cerr << result.error().as_string() << std::endl;
+  }
+  std::cout << *slice.tape << std::endl;
+}
+
+void test04() {
+  struct non_default_constructible_type {
+    explicit non_default_constructible_type(double){};
+  };
+
+  struct non_copyable_type {
+    explicit non_copyable_type(double) {}
+    non_copyable_type(non_copyable_type const&) = delete;
+    non_copyable_type(non_copyable_type&&) noexcept = default;
+  };
+
+  using deserial = deserializer::tuple_deserializer<
+      deserializer::utilities::constructing_deserializer<non_default_constructible_type, deserializer::values::value_deserializer<double>>,
+      deserializer::utilities::constructing_deserializer<non_copyable_type, deserializer::values::value_deserializer<double>>>;
+
+  auto buffer = R"=([12])="_vpack;
+  auto slice = deserializer::test::recording_slice::from_buffer(buffer);
+
+  auto result = deserializer::deserialize_with<deserial>(slice);
 
   if (!result) {
     std::cerr << result.error().as_string() << std::endl;

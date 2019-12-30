@@ -56,10 +56,7 @@ struct expected_value {
   constexpr static auto name = N;
 };
 
-namespace detail {
-
-
-}  // namespace detail
+namespace detail {}  // namespace detail
 
 namespace executor {
 
@@ -178,20 +175,17 @@ struct parameter_list_executor<I, K, parameter_list<P, Ps...>, H> {
         auto& [value, read_value] = result.get();
         std::get<I>(t) = value;
         if (read_value) {
-          return parameter_list_executor<I + 1, K + 1, parameter_list<Ps...>, H>::unpack(
-              t, s, hints);
+          return parameter_list_executor<I + 1, K + 1, parameter_list<Ps...>, H>::unpack(t, s, hints);
         } else {
-          return parameter_list_executor<I + 1, K, parameter_list<Ps...>, H>::unpack(
-              t, s, hints);
+          return parameter_list_executor<I + 1, K, parameter_list<Ps...>, H>::unpack(t, s, hints);
         }
       }
-      return unpack_result{std::move(result.error().wrap(
-          "during read of "s + std::to_string(I) + "th parameters value"))};
+      return unpack_result{std::move(result).error().wrap(
+          "during read of "s + std::to_string(I) + "th parameters value")};
     } else {
       auto result = executor::unpack(s, hints);
       if (result) {
-        return parameter_list_executor<I, K + 1, parameter_list<Ps...>, H>::unpack(
-            t, s, hints);
+        return parameter_list_executor<I, K + 1, parameter_list<Ps...>, H>::unpack(t, s, hints);
       }
       return unpack_result{std::move(result).error()};
     }
@@ -218,24 +212,26 @@ struct parameter_list_executor<I, K, parameter_list<>, H> {
 
 template <typename... Ps, typename H>
 struct deserialize_plan_executor<parameter_list<Ps...>, H> {
-  using tuple_type =
-      typename plan_result_tuple<parameter_list<Ps...>>::type;
+  using tuple_type = typename plan_result_tuple<parameter_list<Ps...>>::type;
   using unpack_result = result<tuple_type, deserialize_error>;
   static auto unpack(::deserializer::slice_type s, typename H::state_type hints)
       -> unpack_result {
-    // store all read parameter in this tuple
-    tuple_type parameter;  // TODO this requires all result types to be default constructible. This requirement is unnecessary.
+    using namespace ::deserializer::detail;
 
-    if (!s.isObject()) {
-      return unpack_result{deserialize_error(std::string{"object expected"})};
+    if constexpr (!hints::hint_is_object<H>) {
+      if (!s.isObject()) {
+        return unpack_result{deserialize_error(std::string{"object expected"})};
+      }
     }
+
+    // store all read parameter in this tuple
+    gadgets::tuple_to_opts_t<tuple_type> parameter;
 
     // forward to the parameter execution
     auto parameter_result =
-        detail::parameter_list_executor<0, 0, parameter_list<Ps...>, H>::unpack(
-            parameter, s, hints);
+        detail::parameter_list_executor<0, 0, parameter_list<Ps...>, H>::unpack(parameter, s, hints);
     if (parameter_result) {
-      return unpack_result{parameter};
+      return unpack_result{gadgets::unpack_opt_tuple(std::move(parameter))};
     }
 
     return unpack_result{std::move(parameter_result).error()};

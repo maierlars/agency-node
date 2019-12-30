@@ -46,13 +46,16 @@ namespace detail {
 
 template <std::size_t I, typename T, typename E>
 struct fixed_order_deserializer_executor_visitor {
-  T& value_store;
+  using value_type = std::optional<T>;
+
+  value_type& value_store;
   E& error_store;
-  explicit fixed_order_deserializer_executor_visitor(T& value_store, E& error_store)
+  explicit fixed_order_deserializer_executor_visitor(value_type& value_store, E& error_store)
       : value_store(value_store), error_store(error_store) {}
 
-  bool operator()(T t) {
-    value_store = std::move(t);
+  template <typename U = T>
+  bool operator()(U&& t) {
+    value_store.emplace(std::forward<U>(t));
     return true;
   }
 
@@ -91,19 +94,22 @@ struct deserialize_plan_executor<fixed_order_deserializer<Ds...>, H> {
 
  private:
   template <std::size_t... I>
-  static auto unpack_internal(const ::deserializer::slice_type& s,
+  static auto unpack_internal(::deserializer::slice_type s,
                               std::index_sequence<I...>) -> result_type {
-    value_type values;  // TODO this requires all types to be default constructible. This is unnecessary.
+    using namespace ::deserializer::detail;
+
+    gadgets::tuple_to_opts_t<value_type> values;
     deserialize_error error;
 
+    ::deserializer::array_iterator iter(s);
     bool result =
-        (deserialize_with<Ds>(s.at(I)).visit(
+        (deserialize_with<Ds>(*iter++).visit(
              detail::fixed_order_deserializer_executor_visitor<I, typename Ds::constructed_type, deserialize_error>(
                  std::get<I>(values), error)) &&
          ...);
 
     if (result) {
-      return result_type{std::move(values)};
+      return result_type{gadgets::unpack_opt_tuple(std::move(values))};
     }
 
     return result_type{std::move(error)};

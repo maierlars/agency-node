@@ -62,10 +62,20 @@ struct conditional_deserializer {
 };
 
 struct is_object_condition {
+  using forward_hints = hints::hint_list<hints::is_object>;
+
   static bool test(::deserializer::slice_type s) noexcept {
     return s.isObject();
   }
 };
+
+template <typename T, typename C = void>
+class condition_has_hints : public std::false_type {};
+template <typename T>
+class condition_has_hints<T, std::void_t<typename T::forward_hints>>
+    : public std::true_type {};
+template <typename D>
+constexpr bool condition_has_hints_v = condition_has_hints<D>::value;
 
 namespace detail {
 
@@ -79,10 +89,8 @@ struct conditional_executor<I, E, conditional_default<D>, CDs...> {
   static auto unpack(::deserializer::slice_type s) -> unpack_result {
     static_assert(sizeof...(CDs) == 0, "conditional_default must be last");
 
-    using namespace std::string_literals;
-    return deserialize_with<D>(s).map([](auto const& v) {
-      return R{std::in_place_index<I>, v};
-    });
+    return deserialize_with<D>(s).map(
+        [](auto const& v) { return R(std::in_place_index<I>, v); });
   }
 };
 
@@ -91,11 +99,19 @@ struct conditional_executor<I, E, condition_deserializer_pair<C, D>, CDs...> {
   using R = typename E::variant_type;
   using unpack_result = result<R, deserialize_error>;
   static auto unpack(::deserializer::slice_type s) -> unpack_result {
-    using namespace std::string_literals;
     if (C::test(s)) {
-      return deserialize_with<D>(s).map([](typename D::constructed_type&& v) {
-        return R(std::in_place_index<I>, std::move(v));
-      });
+
+      if constexpr (condition_has_hints_v<C>) {
+        using hint = typename C::forward_hints;
+        return deserialize_with<D, hint>(s).map([](typename D::constructed_type&& v) {
+          return R(std::in_place_index<I>, std::move(v));
+        });
+
+      } else {
+        return deserialize_with<D>(s).map([](typename D::constructed_type&& v) {
+          return R(std::in_place_index<I>, std::move(v));
+        });
+      }
     }
 
     return conditional_executor<I + 1, E, CDs...>::unpack(s);

@@ -27,6 +27,8 @@ struct slice_access {
     GET_NUMERIC_VALUE,
     IS_EQUAL_STRING,
     STRING_VIEW,
+    ARRAY_ITER_ACCESS,
+    OBJECT_ITER_ACCESS,
   };
 
   std::string key;
@@ -56,9 +58,11 @@ static std::ostream& operator<<(std::ostream& os, slice_access::type type) {
     enum_to_string(GET) enum_to_string(HAS_KEY) enum_to_string(COPY_STRING)
         enum_to_string(IS_NUMBER) enum_to_string(IS_ARRAY) enum_to_string(IS_OBJECT)
             enum_to_string(IS_NONE) enum_to_string(LENGTH) enum_to_string(AT)
-                enum_to_string(GET_NUMBER) enum_to_string(IS_STRING) enum_to_string(IS_BOOL)
-                    enum_to_string(GET_BOOL) enum_to_string(GET_NUMERIC_VALUE)
-                        enum_to_string(IS_EQUAL_STRING) enum_to_string(STRING_VIEW)
+                enum_to_string(GET_NUMBER) enum_to_string(IS_STRING)
+                    enum_to_string(IS_BOOL) enum_to_string(GET_BOOL)
+                        enum_to_string(GET_NUMERIC_VALUE) enum_to_string(IS_EQUAL_STRING)
+                            enum_to_string(STRING_VIEW) enum_to_string(ARRAY_ITER_ACCESS)
+                                enum_to_string(OBJECT_ITER_ACCESS)
   }
   return os;
 #undef enum_to_string
@@ -82,7 +86,7 @@ struct recording_slice {
 
   std::shared_ptr<slice_access_tape> tape;
   arangodb::velocypack::Slice slice;
-  std::string prefix = "";
+  std::string prefix = "$";
 
   bool isNumber() const;
 
@@ -203,6 +207,8 @@ struct object_iterator {
 
   pair operator*() const {
     auto internal = iter.operator*();
+
+    tape->record(prefix, slice_access::type::OBJECT_ITER_ACCESS, internal.key.copyString());
     return pair{recording_slice(internal.key, tape,
                                 prefix + "@key[" + internal.key.copyString() + ']'),
                 recording_slice(internal.value, tape,
@@ -217,14 +223,15 @@ struct object_iterator {
 struct array_iterator {
   array_iterator(arangodb::velocypack::ArrayIterator const& o,
                  std::shared_ptr<slice_access_tape> tape, std::string prefix)
-      : iter(o), tape(std::move(tape)), prefix(prefix), index(0) {}
-  array_iterator(recording_slice& slice)
+      : iter(o), tape(std::move(tape)), prefix(std::move(prefix)), index(0) {}
+  explicit array_iterator(recording_slice& slice)
       : iter(slice.slice), tape(slice.tape), prefix(slice.prefix), index(0){};
 
   array_iterator begin() const { return {iter.begin(), tape, prefix}; }
   array_iterator end() const { return {iter.end(), tape, prefix}; }
 
   recording_slice operator*() const {
+    tape->record(prefix, slice_access::type::ARRAY_ITER_ACCESS, std::to_string(index));
     auto internal = iter.operator*();
     return recording_slice(internal, tape, prefix + "[" + std::to_string(index) + ']');
   }
@@ -237,6 +244,12 @@ struct array_iterator {
     ++index;
     iter.operator++();
     return *this;
+  }
+
+  array_iterator operator++(int) {
+    array_iterator result(*this);
+    ++(*this);
+    return result;
   }
 
   arangodb::velocypack::ArrayIterator iter;

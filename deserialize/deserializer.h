@@ -14,6 +14,7 @@
 #include "map.h"
 #include "types.h"
 #include "value-reader.h"
+#include "unpack-proxy.h"
 #include "values.h"
 
 #endif  // VELOCYPACK_DESERIALIZER_H

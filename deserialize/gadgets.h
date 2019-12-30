@@ -26,6 +26,10 @@ using index_of_type = detail::index_of_type<0, T, Ts...>;
 template <typename T, typename... Ts>
 constexpr const auto index_of_type_v = detail::index_of_type<0, T, Ts...>::value;
 
+static_assert(index_of_type_v<bool, bool> == 0);
+static_assert(index_of_type_v<bool, bool, char> == 0);
+static_assert(index_of_type_v<char, bool, char> == 1);
+
 template <class... Ts>
 struct visitor : Ts... {
   using Ts::operator()...;
@@ -66,7 +70,8 @@ struct is_braces_constructible<constructing_wrapper<T, Args...>,
 }  // namespace detail
 
 template <class T, typename... Args>
-struct is_braces_constructible : detail::is_braces_constructible<detail::constructing_wrapper<T, Args...>> {
+struct is_braces_constructible
+    : detail::is_braces_constructible<detail::constructing_wrapper<T, Args...>> {
 };  // check if T{std::declval<Args>()...} is wellformed
 
 template <class T, typename... Args>
@@ -97,6 +102,39 @@ template <typename... Ts>
 struct tuple_no_void {
   using type = typename detail::tuple_no_void_impl<std::tuple<>, Ts...>::type;
 };
+
+namespace detail {
+template <typename... Ts, typename F, std::size_t... Is>
+auto tuple_map_impl(std::tuple<Ts...> t, F&& f, std::index_sequence<Is...>)
+    -> std::tuple<std::invoke_result_t<F, Ts>...> {
+  using std::get;
+  return std::make_tuple(f(std::move(get<Is>(t)))...);
+}
+}  // namespace detail
+
+template <typename... Ts, typename F>
+auto tuple_map(std::tuple<Ts...> t, F&& f)
+    -> std::tuple<std::invoke_result_t<F, Ts>...> {
+  return detail::tuple_map_impl(std::move(t), std::forward<F>(f),
+                                std::index_sequence_for<Ts...>{});
+}
+
+template<typename>
+struct tuple_to_opts;
+
+template<typename... Ts>
+struct tuple_to_opts<std::tuple<Ts...>> {
+  using type = std::tuple<std::optional<Ts>...>;
+};
+
+template<typename T>
+using tuple_to_opts_t = typename tuple_to_opts<T>::type;
+
+
+template<typename... Ts>
+std::tuple<Ts...> unpack_opt_tuple(std::tuple<std::optional<Ts>...> t) {
+  return tuple_map(std::move(t), [](auto && x) { return std::forward<decltype(x)>(x).value(); });
+}
 
 }  // namespace deserializer::detail::gadgets
 

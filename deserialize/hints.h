@@ -29,9 +29,12 @@ struct has_field_with_value {
   using state_type = ::deserializer::slice_type;
 };
 
-struct is_object {
+struct empty_hint {
   using state_type = unit_type;
 };
+
+struct is_object : public empty_hint {};
+struct is_string : public empty_hint {};
 
 template<typename, typename>
 struct hint_list_contains;
