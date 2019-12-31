@@ -112,7 +112,7 @@ struct deserialize_plan_executor<field_value_dependent<N, VSs...>, H> {
   using variant_type = typename plan_result_tuple_type::variant;
   using unpack_result = result<unpack_tuple_type, deserialize_error>;
   constexpr static auto name = N;
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints)
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/)
       -> unpack_result {
     /*
      * Select the sub deserializer depending on the value.
@@ -135,7 +135,7 @@ struct deserialize_plan_executor<field_value_dependent<N, VSs...>, H> {
 
 template <const char N[], typename H>
 struct deserialize_plan_executor<field_value_dependent<N>, H> {
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) {
+  static auto unpack(::deserializer::slice_type /*s*/, typename H::state_type /*hints*/) {
     /*
      * No matching type was found, we can not deserialize.
      */

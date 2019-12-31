@@ -1,8 +1,7 @@
 #ifndef VELOCYPACK_MAP_H
 #define VELOCYPACK_MAP_H
-#include "plan-executor.h"
-#include "utilities.h"
-#include "vpack-types.h"
+#include "deserialize-with.h"
+#include "value-reader.h"
 
 namespace deserializer {
 
@@ -40,7 +39,7 @@ struct deserialize_plan_executor<map_deserializer<D, C, K, F>, H> {
   using proxy_type = typename map_deserializer<D, C, K, F>::constructed_type;
   using tuple_type = std::tuple<proxy_type>;
   using result_type = result<tuple_type, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) -> result_type {
     proxy_type result;
     using namespace std::string_literals;
 

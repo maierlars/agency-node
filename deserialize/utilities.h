@@ -1,5 +1,6 @@
 #ifndef VELOCYPACK_UTILITIES_H
 #define VELOCYPACK_UTILITIES_H
+#include <memory>
 #include "gadgets.h"
 
 namespace deserializer::utilities {

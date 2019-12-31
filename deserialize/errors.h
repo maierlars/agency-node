@@ -86,7 +86,7 @@ struct error {
   }
 
   operator std::string() const { return as_string(); }
-  [[nodiscard]] std::string as_string(bool detailed = false) const {
+  [[nodiscard]] std::string as_string(bool /*detailed*/ = false) const {
     using deserializer::detail::gadgets::visitor;
     std::string result;
     bool was_terminated = false;

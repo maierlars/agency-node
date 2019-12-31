@@ -1,6 +1,8 @@
 #ifndef VELOCYPACK_PLAN_EXECUTOR_H
 #define VELOCYPACK_PLAN_EXECUTOR_H
 
+#include <tuple>
+
 namespace deserializer::executor {
 
 /*

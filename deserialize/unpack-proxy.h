@@ -5,6 +5,10 @@
 #ifndef VELOCYPACK_UNPACK_PROXY_H
 #define VELOCYPACK_UNPACK_PROXY_H
 
+#include <memory>
+#include "deserialize-with.h"
+#include "utilities.h"
+
 namespace deserializer {
 template <typename D, typename P = D>
 struct unpack_proxy {

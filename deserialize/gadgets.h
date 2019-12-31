@@ -2,6 +2,7 @@
 #define VELOCYPACK_GADGETS_H
 #include <cstddef>
 #include <tuple>
+#include <optional>
 
 namespace deserializer::detail::gadgets {
 namespace detail {

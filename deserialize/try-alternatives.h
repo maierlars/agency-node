@@ -1,6 +1,7 @@
 #ifndef VELOCYPACK_TRY_ALTERNATIVES_H
 #define VELOCYPACK_TRY_ALTERNATIVES_H
 #include "utilities.h"
+#include "deserialize-with.h"
 
 namespace deserializer {
 namespace try_alternatives {
@@ -43,7 +44,7 @@ struct deserialize_plan_executor<try_alternatives::try_alternatives_deserializer
       typename try_alternatives::try_alternatives_deserializer<Ds...>::constructed_type;
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) -> result_type {
     /*
      * Try one alternative after the other. Take the first that does not fail. If all fail, fail.
      */
