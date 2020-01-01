@@ -122,7 +122,7 @@ template <std::size_t I, typename E>
 struct conditional_executor<I, E> {
   using R = typename E::variant_type;
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v)
+  static auto unpack(::deserializer::slice_type /*s*/, ::deserializer::slice_type v)
       -> unpack_result {
     using namespace std::string_literals;
     return unpack_result{deserialize_error{"unrecognized value `"s + v.toJson() + "`"}};
@@ -145,7 +145,7 @@ struct deserialize_plan_executor<conditional<CSs...>, H> {
   using variant_type = typename plan_result_tuple_type::variant;
   using unpack_result = result<unpack_tuple_type, deserialize_error>;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints)
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/)
       -> unpack_result {
     /*
      * Select the sub deserializer depending on the value.

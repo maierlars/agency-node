@@ -96,7 +96,7 @@ struct parameter_executor<factory_simple_parameter<N, T, required, default_v>, H
   using result_type = result<std::pair<T, bool>, deserialize_error>;
   constexpr static bool has_value = true;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) {
     using namespace std::string_literals;
 
     auto value_slice = s.get(N);
@@ -124,7 +124,7 @@ struct parameter_executor<factory_optional_parameter<N, T>, H> {
   using result_type = result<std::pair<value_type, bool>, deserialize_error>;
   constexpr static bool has_value = true;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) -> result_type {
     using namespace std::string_literals;
 
     auto value_slice = s.get(N);
@@ -149,7 +149,7 @@ struct parameter_executor<factory_deserialized_parameter<N, D, required>, H> {
   using result_type = result<std::pair<value_type, bool>, deserialize_error>;
   constexpr static bool has_value = true;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) -> result_type {
     using namespace std::string_literals;
 
     auto value_slice = s.get(N);
@@ -178,7 +178,7 @@ struct parameter_executor<factory_slice_parameter<N, required>, H> {
   using result_type = result<std::pair<value_type, bool>, deserialize_error>;
   constexpr static bool has_value = true;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) -> result_type {
     auto value_slice = s.get(N);
     if (!value_slice.isNone()) {
       return result_type{std::make_pair(value_slice, true)};
@@ -201,17 +201,17 @@ struct parameter_executor<expected_value<N, V>, H> {
   using result_type = result<std::pair<unit_type, bool>, deserialize_error>;
   constexpr static bool has_value = false;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) -> result_type {
     values::ensure_value_comparator<V>{};
     if constexpr (!hints::hint_list_contains_v<hints::has_field_with_value<N, V>, H>) {
       auto value_slice = s.get(N);
       if (!values::value_comparator<V>::compare(value_slice)) {
         using namespace std::string_literals;
 
-        return result_type{std::move(deserialize_error{
+        return result_type{deserialize_error{
             "value at `"s + N + "` not as expected, found: `" +
             value_slice.toJson() + "`, expected: `" + to_string(V{}) + "`"}
-                                         .trace(N))};
+                                         .trace(N)};
       }
     }
 
@@ -269,7 +269,7 @@ struct parameter_list_executor<I, K, parameter_list<>, H> {
   using unpack_result = result<unit_type, deserialize_error>;
 
   template <typename T>
-  static auto unpack(T& t, ::deserializer::slice_type s, typename H::state_type hints)
+  static auto unpack(T& /*t*/, ::deserializer::slice_type s, typename H::state_type /*hints*/)
       -> unpack_result {
     if (s.length() != K) {
       return unpack_result{deserialize_error{

@@ -3,6 +3,7 @@
 #include "plan-executor.h"
 #include "types.h"
 #include "vpack-types.h"
+#include "deserialize-with.h"
 
 namespace deserializer {
 
@@ -51,7 +52,7 @@ struct field_name_dependent_executor<R, field_name_deserializer_pair<N, D>, fiel
 template <typename R>
 struct field_name_dependent_executor<R> {
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s) -> unpack_result {
+  static auto unpack(::deserializer::slice_type /*s*/) -> unpack_result {
     using namespace std::string_literals;
     return unpack_result{deserialize_error{"format not recognized"}};
   }
@@ -74,7 +75,7 @@ struct deserialize_plan_executor<field_name_dependent<NDs...>, H> {
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) -> result_type {
     return ::deserializer::detail::field_name_dependent_executor<variant_type, NDs...>::unpack(s)
         .visit(::deserializer::detail::gadgets::visitor{
             [](variant_type const& v) { return result_type{std::make_tuple(v)}; },

@@ -77,7 +77,7 @@ struct deserialize_plan_executor<fixed_order_deserializer<Ds...>, H> {
 
   constexpr static auto expected_array_length = sizeof...(Ds);
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  static auto unpack(::deserializer::slice_type s, typename H::state_type /*hints*/) -> result_type {
     using namespace std::string_literals;
 
     if (!s.isArray()) {
