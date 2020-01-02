@@ -39,7 +39,8 @@ struct deserialize_plan_executor<attribute_deserializer<N, D>, H> {
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
-  auto static unpack(slice_type const& s, typename H::state_type hints) -> result_type {
+  template<typename ctx>
+  auto static unpack(slice_type const& s, typename H::state_type hints, ctx && c) -> result_type {
     // if there is no hint that s is actually an object, we have to check that
     if constexpr (!hints::hint_is_object<H>) {
       if (!s.isObject()) {
@@ -56,7 +57,7 @@ struct deserialize_plan_executor<attribute_deserializer<N, D>, H> {
 
     using namespace std::string_literals;
 
-    return deserialize_with<D>(value_slice)
+    return deserialize<D, hints::hint_list_empty, ctx>(value_slice, {}, std::forward<ctx>(c))
         .map([](value_type&& v) { return std::make_tuple(v); })
         .wrap([](deserialize_error&& e) {
           return e.wrap("when reading attribute "s + N).trace(N);

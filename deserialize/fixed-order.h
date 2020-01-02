@@ -77,7 +77,9 @@ struct deserialize_plan_executor<fixed_order_deserializer<Ds...>, H> {
 
   constexpr static auto expected_array_length = sizeof...(Ds);
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+  template <typename ctx>
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints, ctx&& c)
+      -> result_type {
     using namespace std::string_literals;
 
     if (!s.isArray()) {
@@ -89,13 +91,13 @@ struct deserialize_plan_executor<fixed_order_deserializer<Ds...>, H> {
           "bad array length, found: "s + std::to_string(s.length()) +
           ", expected: " + std::to_string(expected_array_length)}};
     }*/
-    return unpack_internal(s, std::index_sequence_for<Ds...>{});
+    return unpack_internal(s, std::index_sequence_for<Ds...>{}, std::forward<ctx>(c));
   }
 
  private:
-  template <std::size_t... I>
-  static auto unpack_internal(::deserializer::slice_type s, std::index_sequence<I...>)
-      -> result_type {
+  template <std::size_t... I, typename ctx>
+  static auto unpack_internal(::deserializer::slice_type s,
+                              std::index_sequence<I...>, ctx&& c) -> result_type {
     using namespace ::deserializer::detail;
     using namespace std::string_literals;
 
@@ -104,13 +106,13 @@ struct deserialize_plan_executor<fixed_order_deserializer<Ds...>, H> {
 
     ::deserializer::array_iterator iter(s);
 
-    bool result = ([&error](::deserializer::array_iterator const& iter, auto& value) {
+    bool result = ([&error, &c](::deserializer::array_iterator const& iter, auto& value) {
       if (error) {
         return false;
       }
 
       if (iter != iter.end()) {
-        return deserialize_with<Ds>(*iter).visit(
+        return deserialize<Ds, hints::hint_list_empty, ctx>(*iter, {}, std::forward<ctx>(c)).visit(
             detail::fixed_order_deserializer_executor_visitor<I, typename Ds::constructed_type, deserialize_error>(
                 value, error));
       } else {

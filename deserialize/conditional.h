@@ -86,11 +86,14 @@ template <std::size_t I, typename E, typename D, typename... CDs>
 struct conditional_executor<I, E, conditional_default<D>, CDs...> {
   using R = typename E::variant_type;
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s) -> unpack_result {
+
+  template <typename ctx>
+  static auto unpack(::deserializer::slice_type s, ctx&& c)
+      -> unpack_result {
     static_assert(sizeof...(CDs) == 0, "conditional_default must be last");
 
-    return deserialize_with<D>(s).map(
-        [](auto const& v) { return R(std::in_place_index<I>, v); });
+    return deserialize<D, hints::hint_list_empty, ctx>(s, {}, std::forward<ctx>(c))
+        .map([](auto const& v) { return R(std::in_place_index<I>, v); });
   }
 };
 
@@ -98,23 +101,27 @@ template <std::size_t I, typename E, typename C, typename D, typename... CDs>
 struct conditional_executor<I, E, condition_deserializer_pair<C, D>, CDs...> {
   using R = typename E::variant_type;
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s) -> unpack_result {
-    if (C::test(s)) {
 
+  template <typename ctx>
+  static auto unpack(::deserializer::slice_type s, ctx&& c)
+      -> unpack_result {
+    if (C::test(s)) {
       if constexpr (condition_has_hints_v<C>) {
         using hint = typename C::forward_hints;
-        return deserialize_with<D, hint>(s).map([](typename D::constructed_type&& v) {
-          return R(std::in_place_index<I>, std::move(v));
-        });
+        return deserialize<D, hint, ctx>(s, {}, std::forward<ctx>(c))
+            .map([](typename D::constructed_type&& v) {
+              return R(std::in_place_index<I>, std::move(v));
+            });
 
       } else {
-        return deserialize_with<D>(s).map([](typename D::constructed_type&& v) {
-          return R(std::in_place_index<I>, std::move(v));
-        });
+        return deserialize_with<D, hints::hint_list_empty, ctx>(s, {}, std::forward<ctx>(c))
+            .map([](typename D::constructed_type&& v) {
+              return R(std::in_place_index<I>, std::move(v));
+            });
       }
     }
 
-    return conditional_executor<I + 1, E, CDs...>::unpack(s);
+    return conditional_executor<I + 1, E, CDs...>::unpack(s, std::forward<ctx>(c));
   }
 };
 
@@ -122,7 +129,9 @@ template <std::size_t I, typename E>
 struct conditional_executor<I, E> {
   using R = typename E::variant_type;
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v)
+
+  template <typename C>
+  static auto unpack(::deserializer::slice_type v, C &&)
       -> unpack_result {
     using namespace std::string_literals;
     return unpack_result{deserialize_error{"unrecognized value `"s + v.toJson() + "`"}};
@@ -145,7 +154,8 @@ struct deserialize_plan_executor<conditional<CSs...>, H> {
   using variant_type = typename plan_result_tuple_type::variant;
   using unpack_result = result<unpack_tuple_type, deserialize_error>;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints)
+  template <typename C>
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints, C&& ctx)
       -> unpack_result {
     /*
      * Select the sub deserializer depending on the value.
@@ -153,7 +163,8 @@ struct deserialize_plan_executor<conditional<CSs...>, H> {
      */
     using namespace std::string_literals;
 
-    return ::deserializer::detail::conditional_executor<0, executor_type, CSs...>::unpack(s)
+    return ::deserializer::detail::conditional_executor<0, executor_type, CSs...>::unpack(
+               s, std::forward<C>(ctx))
         .map([](variant_type&& v) { return std::make_tuple(std::move(v)); })
         .wrap([](deserialize_error&& e) {
           return std::move(e).wrap("when parsing conditionally");

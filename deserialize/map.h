@@ -40,7 +40,9 @@ struct deserialize_plan_executor<map_deserializer<D, C, K, F>, H> {
   using proxy_type = typename map_deserializer<D, C, K, F>::constructed_type;
   using tuple_type = std::tuple<proxy_type>;
   using result_type = result<tuple_type, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+
+  template<typename ctx>
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints, ctx && c) -> result_type {
     proxy_type result;
     using namespace std::string_literals;
 
@@ -51,7 +53,7 @@ struct deserialize_plan_executor<map_deserializer<D, C, K, F>, H> {
     }
 
     for (auto const& member : ::deserializer::object_iterator(s, true)) {  // use sequential deserialization
-      auto member_result = deserialize_with<D>(member.value);
+      auto member_result = deserialize<D, H, ctx>(member.value, {}, std::forward<ctx>(c));
       if (!member_result) {
         return result_type{std::move(member_result)
                                .error()

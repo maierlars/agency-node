@@ -126,7 +126,9 @@ struct deserialize_plan_executor<values::value_deserializer<T>, H> {
   using value_type = T;
   using tuple_type = std::tuple<value_type>;
   using result_type = result<tuple_type, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) -> result_type {
+
+  template<typename C>
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints, C&&) -> result_type {
     ensure_value_reader<T>{};
     return value_reader<T>::read(s).map(
         [](T t) { return std::make_tuple(std::move(t)); });

@@ -58,7 +58,9 @@ struct field_value_dependent_executor<I, E, VD, VDs...> {
   using D = typename VD::deserializer;
   using R = typename E::variant_type;
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v)
+
+  template <typename C>
+  static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v, C&& ctx)
       -> unpack_result {
     using namespace std::string_literals;
     values::ensure_value_comparator<V>{};
@@ -66,7 +68,8 @@ struct field_value_dependent_executor<I, E, VD, VDs...> {
       using hint = hints::hint_list<hints::has_field_with_value<E::name, V>,
                                     hints::is_object, hints::has_field<E::name>>;
 
-      return deserialize_with<D, hint>(s, std::make_tuple(v, unit_type{}, v))
+      return deserialize<D, hint, C>(s, std::make_tuple(v, unit_type{}, v),
+                                     std::forward<C>(ctx))
           .visit(::deserializer::detail::gadgets::visitor{
               [](auto const& v) {
                 return unpack_result{R{std::in_place_index<I>, v}};
@@ -77,7 +80,7 @@ struct field_value_dependent_executor<I, E, VD, VDs...> {
               }});
     }
 
-    return field_value_dependent_executor<I + 1, E, VDs...>::unpack(s, v);
+    return field_value_dependent_executor<I + 1, E, VDs...>::unpack(s, v, std::forward<C>(ctx));
   }
 };
 
@@ -85,7 +88,9 @@ template <std::size_t I, typename E>
 struct field_value_dependent_executor<I, E> {
   using R = typename E::variant_type;
   using unpack_result = result<R, deserialize_error>;
-  static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v)
+
+  template<typename C>
+  static auto unpack(::deserializer::slice_type s, ::deserializer::slice_type v, C&&)
       -> unpack_result {
     using namespace std::string_literals;
     if (s.isNone()) {
@@ -112,7 +117,9 @@ struct deserialize_plan_executor<field_value_dependent<N, VSs...>, H> {
   using variant_type = typename plan_result_tuple_type::variant;
   using unpack_result = result<unpack_tuple_type, deserialize_error>;
   constexpr static auto name = N;
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints)
+
+  template <typename C>
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints, C&& ctx)
       -> unpack_result {
     /*
      * Select the sub deserializer depending on the value.
@@ -121,7 +128,8 @@ struct deserialize_plan_executor<field_value_dependent<N, VSs...>, H> {
     using namespace std::string_literals;
 
     ::deserializer::slice_type value_slice = s.get(N);
-    return ::deserializer::detail::field_value_dependent_executor<0, executor_type, VSs...>::unpack(s, value_slice)
+    return ::deserializer::detail::field_value_dependent_executor<0, executor_type, VSs...>::unpack(
+               s, value_slice, std::forward<C>(ctx))
         .visit(::deserializer::detail::gadgets::visitor{
             [](variant_type const& v) {
               return unpack_result{std::make_tuple(v)};
@@ -135,11 +143,11 @@ struct deserialize_plan_executor<field_value_dependent<N, VSs...>, H> {
 
 template <const char N[], typename H>
 struct deserialize_plan_executor<field_value_dependent<N>, H> {
-  static auto unpack(::deserializer::slice_type s, typename H::state_type hints) {
+  template <typename C>
+  static auto unpack(::deserializer::slice_type s, typename H::state_type hints, C&&) {
     /*
      * No matching type was found, we can not deserialize.
      */
-    // TODO add static assert instead
     return result<unit_type, deserialize_error>{
         deserialize_error{"empty dependent field list"}};
   }

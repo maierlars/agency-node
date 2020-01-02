@@ -26,8 +26,9 @@ struct deserialize_plan_executor<unpack_proxy<D, P>, H> {
   using tuple_type = std::tuple<proxy_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
-  static auto unpack(::deserializer::slice_type s, typename H::state_type h) -> result_type {
-    return deserialize_with<D, H>(s, h).map([](typename D::constructed_type&& v) {
+  template<typename C>
+  static auto unpack(::deserializer::slice_type s, typename H::state_type h, C&& ctx) -> result_type {
+    return deserialize<D, H, C>(s, h, std::forward<C>(ctx)).map([](typename D::constructed_type&& v) {
       return std::make_tuple(std::move(v));
     });
   }

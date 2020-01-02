@@ -31,7 +31,8 @@ struct deserialize_plan_executor<array_deserializer<D, C, F>, H> {
   using tuple_type = std::tuple<proxy_type>;
   using result_type = result<tuple_type, deserialize_error>;
 
-  static auto unpack(slice_type slice, typename H::state_type) -> result_type {
+  template<typename ctx>
+  static auto unpack(slice_type slice, typename H::state_type, ctx && c) -> result_type {
     if (!slice.isArray()) {
       return result_type{deserialize_error{"array expected"}};
     }
@@ -41,7 +42,7 @@ struct deserialize_plan_executor<array_deserializer<D, C, F>, H> {
     proxy_type result;
 
     for (auto const& member : ::deserializer::array_iterator(slice)) {
-      auto member_result = deserialize_with<D, hints::hint_list_empty>(member);
+      auto member_result = deserialize<D, hints::hint_list_empty, ctx>(member, {}, std::forward<ctx>(c));
       if (member_result) {
         result.emplace_back(std::move(member_result).get());
       } else {

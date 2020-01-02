@@ -40,6 +40,21 @@ struct constructing_deserializer {
   using factory = constructor_factory<T>;
 };
 
+template<auto value>
+struct member_extractor;
+
+template<typename A, typename B, A B::*ptr>
+struct member_extractor<ptr> {
+  static A& exec(B & b) {
+    return b.*ptr;
+  }
+
+  static A const& exec(B const& b) {
+    return b.*ptr;
+  }
+};
+
+
 }  // namespace deserializer::utilities
 
 #endif  // VELOCYPACK_UTILITIES_H
