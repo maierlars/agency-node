@@ -152,7 +152,6 @@ constexpr const char str_min_replication_factor[] = "minReplicationFactor";
 
 struct graph_options_validator {
   struct context_type {
-
     context_type(context_type const&) = delete;
 
     uint32_t maxNumberOfShards;
@@ -193,38 +192,33 @@ struct graph_edge_definition {
   std::vector<std::string_view> to;
 };
 
-struct graph_edge_definition_validator {
-  auto operator()(graph_edge_definition const& e) -> std::optional<deserialize_error> {
-    if (e.collection.empty()) {
-      return deserialize_error{"collection name must not be empty"};
-    }
-    if (e.from.empty()) {
-      return deserialize_error{"from must not be empty"}.trace("from");
-    }
-    if (e.to.empty()) {
-      return deserialize_error{"to must not be empty"};
-    }
-
-    return {};
-  }
-};
-
 constexpr const char str_collection[] = "collection";
 constexpr const char str_from[] = "from";
 constexpr const char str_to[] = "to";
 
-using string_view_array_deserializer = deserializer::array_deserializer<deserializer::values::value_deserializer<std::string_view>, my_vector>;
+template<typename D, template <typename> typename C>
+using non_empty_array_deserializer = deserializer::validate<
+    deserializer::array_deserializer<D, C>,
+    deserializer::utilities::not_empty_validator>;
+
+using non_empty_string_view_array_deserializer = non_empty_array_deserializer<
+    deserializer::values::value_deserializer<std::string_view>, my_vector>;
+
+template<typename S>
+using non_empty_string_container = deserializer::validate<
+    deserializer::values::value_deserializer<S>,
+    deserializer::utilities::not_empty_validator>;
+
+using non_empty_string_view = non_empty_string_container<std::string_view>;
 
 using graph_edge_definition_deserializer = deserializer::utilities::constructing_deserializer<graph_edge_definition, deserializer::parameter_list<
-    deserializer::factory_simple_parameter<str_collection, std::string_view, true>,
-    deserializer::factory_deserialized_parameter<str_from, string_view_array_deserializer, true>,
-    deserializer::factory_deserialized_parameter<str_to, string_view_array_deserializer, true>
+    deserializer::factory_deserialized_parameter<str_collection, non_empty_string_view, true>,
+    deserializer::factory_deserialized_parameter<str_from, non_empty_string_view_array_deserializer, true>,
+    deserializer::factory_deserialized_parameter<str_to, non_empty_string_view_array_deserializer, true>
 >>;
 
-using graph_edge_definition_validating_deserializer = deserializer::validate<graph_edge_definition_deserializer, graph_edge_definition_validator>;
-
 using graph_edge_definition_list = std::vector<graph_edge_definition>;
-using graph_edge_definition_list_deserializer = deserializer::array_deserializer<graph_edge_definition_validating_deserializer, my_vector>;
+using graph_edge_definition_list_deserializer = non_empty_array_deserializer<graph_edge_definition_deserializer, my_vector>;
 
 struct graph_definition {
   std::string_view name;
@@ -233,32 +227,17 @@ struct graph_definition {
   std::optional<graph_options> options;
 };
 
-struct graph_definition_validator {
-  auto operator()(graph_definition const& d) -> std::optional<deserialize_error> {
-    if (d.name.empty()) {
-      return deserialize_error{"name must not be empty"};
-    }
-    if (d.edgeDefinitions.empty()) {
-      return deserialize_error{"edgeDefinition must not be empty"};
-    }
-
-    return {};
-  }
-};
-
 constexpr const char str_name[] = "name";
 constexpr const char str_is_smart[] = "isSmart";
 constexpr const char str_edge_definitions[] = "edgeDefinitions";
 constexpr const char str_options[] = "options";
 
 using graph_definition_deserializer = deserializer::utilities::constructing_deserializer<graph_definition, deserializer::parameter_list<
-    deserializer::factory_simple_parameter<str_name, std::string_view, true>,
+    deserializer::factory_deserialized_parameter<str_name, non_empty_string_view, true>,
     deserializer::factory_simple_parameter<str_is_smart, bool, false, deserializer::values::numeric_value<bool, false>>,
     deserializer::factory_deserialized_parameter<str_edge_definitions, graph_edge_definition_list_deserializer, true>,
     deserializer::factory_deserialized_parameter<str_options, graph_options_validating_deserializer, false>
 >>;
-
-using graph_definition_validating_deserializer = deserializer::validate<graph_definition_deserializer, graph_definition_validator>;
 
 /* clang-format on */
 
@@ -269,7 +248,7 @@ void test05() {
   graph_options_validator::context_type ctx = {2, 3};
 
   auto result =
-      deserializer::deserialize_with_context<graph_definition_validating_deserializer>(slice, ctx);
+      deserializer::deserialize_with_context<graph_definition_deserializer>(slice, ctx);
 
   if (!result) {
     std::cerr << result.error().as_string() << std::endl;

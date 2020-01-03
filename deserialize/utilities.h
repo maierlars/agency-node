@@ -1,5 +1,6 @@
 #ifndef VELOCYPACK_UTILITIES_H
 #define VELOCYPACK_UTILITIES_H
+#include <memory>
 #include "gadgets.h"
 
 namespace deserializer::utilities {
@@ -51,6 +52,16 @@ struct member_extractor<ptr> {
 
   static A const& exec(B const& b) {
     return b.*ptr;
+  }
+};
+
+struct not_empty_validator {
+  template<typename C>
+  auto operator()(C && c) -> std::optional<deserialize_error> {
+    if (c.empty()) {
+      return deserialize_error{"must not be empty"};
+    }
+    return {};
   }
 };
 
