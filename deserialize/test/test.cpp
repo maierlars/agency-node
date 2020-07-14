@@ -267,7 +267,7 @@ constexpr const char MyEnum_sum[] = "sum";
 using MyEnum_deserializer = deserializer::enum_deserializer<
     MyEnum, deserializer::enum_member<MyEnum::MIN, deserializer::values::string_value<MyEnum_min>>,
     deserializer::enum_member<MyEnum::MAX, deserializer::values::string_value<MyEnum_max>>,
-    deserializer::enum_member<MyEnum::SUM, deserializer::values::string_value<MyEnum_sum>>>;
+    deserializer::enum_member<MyEnum::SUM, deserializer::values::numeric_value<int, 12>>>;
 
 void test06() {
   auto buffer = R"=("mox")="_vpack;

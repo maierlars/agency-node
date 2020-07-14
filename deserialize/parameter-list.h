@@ -87,8 +87,10 @@ struct plan_result_tuple<parameter_list<T...>> {
 
 namespace detail {
 
-template <typename...>
-struct parameter_executor {};
+template <typename T, typename H>
+struct parameter_executor {
+  static_assert(utilities::always_false_v<T>, "missing parameter executor for type. Is it a parameter type?");
+};
 
 template <char const N[], typename T, bool required, typename default_v, typename H>
 struct parameter_executor<factory_simple_parameter<N, T, required, default_v>, H> {
@@ -102,7 +104,6 @@ struct parameter_executor<factory_simple_parameter<N, T, required, default_v>, H
 
     auto value_slice = s.get(N);
     if (!value_slice.isNone()) {
-      ensure_value_reader<T>{};
 
       return value_reader<T>::read(value_slice)
           .map([](T&& t) { return std::make_pair(std::move(t), true); })
@@ -132,8 +133,6 @@ struct parameter_executor<factory_optional_parameter<N, T>, H> {
 
     auto value_slice = s.get(N);
     if (!value_slice.isNone()) {
-      ensure_value_reader<T>{};
-
       return value_reader<T>::read(value_slice)
           .map([](T&& t) { return std::make_pair(std::move(t), true); })
           .wrap([](deserialize_error&& e) {
@@ -212,16 +211,15 @@ struct parameter_executor<expected_value<N, V>, H> {
   template <typename C>
   static auto unpack(::deserializer::slice_type s, typename H::state_type hints, C &&)
       -> result_type {
-    values::ensure_value_comparator<V>{};
     if constexpr (!hints::hint_list_contains_v<hints::has_field_with_value<N, V>, H>) {
       auto value_slice = s.get(N);
       if (!values::value_comparator<V>::compare(value_slice)) {
         using namespace std::string_literals;
 
-        return result_type{std::move(deserialize_error{
+        return result_type{deserialize_error{
             "value at `"s + N + "` not as expected, found: `" +
             value_slice.toJson() + "`, expected: `" + to_string(V{}) + "`"}
-                                         .trace(N))};
+                                         .trace(N)};
       }
     }
 
@@ -244,7 +242,7 @@ struct parameter_list_executor<I, K, parameter_list<P, Ps...>, H> {
   template <typename T, typename C>
   static auto unpack(T& t, ::deserializer::slice_type s,
                      typename H::state_type hints, C&& ctx) -> unpack_result {
-    static_assert(::deserializer::detail::gadgets::is_complete_type_v<detail::parameter_executor<P>>,
+    static_assert(::deserializer::detail::gadgets::is_complete_type_v<detail::parameter_executor<P, H>>,
                   "parameter executor is not defined");
     // maybe one can do this with folding?
     using executor = detail::parameter_executor<P, H>;

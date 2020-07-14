@@ -2,6 +2,8 @@
 #define DESERIALIZER_TYPES_H
 #include <variant>
 
+namespace deserializer {
+
 //struct unit_type {};
 using unit_type = std::monostate;
 
@@ -121,4 +123,9 @@ class result {
  private:
   variant_type value;
 };
+
+}
+
+template<typename T>
+using deserializer_result = deserializer::result<T, deserializer::error>;
 #endif  // DESERIALIZER_TYPES_H
