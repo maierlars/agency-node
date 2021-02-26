@@ -5,6 +5,7 @@
 #ifndef AGENCY_HELPER_STRINGS_H
 #define AGENCY_HELPER_STRINGS_H
 #include <optional>
+#include <string>
 
 template <typename T>
 std::optional<T> string_to_number(std::string const& str) {

@@ -164,7 +164,7 @@ node_ptr node_array::set_impl(std::string const& key, node_ptr const& v) const {
     size_t const index = parsed_value.value();
     auto result = value.transient();
 
-    while (index >= value.size()) {
+    while (index >= result.size()) {
       result.push_back(node::null_node());
     }
 

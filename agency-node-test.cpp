@@ -11,7 +11,6 @@
 #include "store.h"
 
 #include "deserialize/deserializer.h"
-#include "futures.h"
 #include "operation-deserializer.h"
 
 /*
@@ -205,12 +204,6 @@ std::ostream& operator<<(std::ostream& os, std::function<bool(const node_ptr&)> 
   return os;
 }
 
-template <typename T, typename E>
-std::ostream& operator<<(std::ostream& os, result<T, E> const& r) {
-  r.visit(visitor{[&os](T const& v) { os << "Value: " << v; },
-                  [&os](E const& e) { os << "Error: " << e; }});
-  return os;
-}
 
 template <typename K, typename V>
 static std::ostream& operator<<(std::ostream& os, vector_map<K, V> const& v) {
@@ -252,14 +245,6 @@ std::ostream& operator<<(std::ostream& os, agency_transaction const& at) {
   return os;
 }
 
-void deserialize_test() {
-  auto op = R"=([[{"arango/Plan/Collection": {"op":"set", "nex":{"hello":"world"}}}, {"arango/Plan/Collection":{"oldEmpy":true}}, "hello"]])="_vpack;
-
-  auto result =
-      deserializer::deserialize<agency_envelope_deserializer>(Slice(op.data()));
-  std::cout << result << std::endl;
-}
-
 node_ptr node_from_file(std::string const& filename) {
   std::ifstream fs;
   std::stringstream ss;
@@ -288,34 +273,9 @@ void huge_node_test(std::string const& filename) {
   std::cout << "avg  " << std::setprecision(3) << (double) std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / n << "us" << std::endl;
 }
 
-future<double> half(int x) {
-  return make_future<double>((double) x / 2);
-}
-
-void future_test() {
-
-  auto [f, p] = make_promise<int>();
-
-  auto f2 = std::move(f).then([](int x) {
-    std::cout << "received " << x << std::endl;
-    return half(x);
-  }).then([](double x){
-    std::cout << "half is " << x << std::endl;
-    return x > 0;
-  });
-
-  std::move(p).set(12);
-  std::move(f2).then([](bool z) {
-    std::cout << "is it bigger than zero: " << z << std::endl;
-  });
-
-}
-
 int main(int argc, char* argv[]) {
-  // node_test();
-  // store_test();
-  // deserialize_test();
-  future_test();
+  node_test();
+  //store_test();
 
   if (argc > 1) {
     huge_node_test(argv[1]);

@@ -1,7 +1,3 @@
-//
-// Created by lars on 28.11.19.
-//
-
 #ifndef AGENCY_NODE_H
 #define AGENCY_NODE_H
 
