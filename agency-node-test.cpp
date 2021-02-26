@@ -1,17 +1,16 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <memory>
 
 #include "helper-immut.h"
 
 #include "node-conditions.h"
 #include "node-operations.h"
-#include "node.h"
 #include "store.h"
 
 #include "deserialize/deserializer.h"
 #include "operation-deserializer.h"
+#include "test-helper.h"
 
 /*
 template <typename K, typename V>
@@ -243,17 +242,6 @@ std::ostream& operator<<(std::ostream& os, std::vector<T> const& v) {
 std::ostream& operator<<(std::ostream& os, agency_transaction const& at) {
   os << '[' << at.operations << ',' << at.preconditions << ',' << at.client_id << ']';
   return os;
-}
-
-node_ptr node_from_file(std::string const& filename) {
-  std::ifstream fs;
-  std::stringstream ss;
-  fs.open(filename);
-  ss << fs.rdbuf();
-  std::string str = ss.str();
-
-  auto data = Parser::fromJson(str);
-  return node::from_slice(data->slice());
 }
 
 void huge_node_test(std::string const& filename) {

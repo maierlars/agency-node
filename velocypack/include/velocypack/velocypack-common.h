@@ -81,7 +81,7 @@
 // attribute used to force inlining of functions
 #if defined(__GNUC__) || defined(__clang__)
 #define VELOCYPACK_FORCE_INLINE inline __attribute__((__always_inline__))
-#elif _WIN32
+#elif _MSC_VER
 #define VELOCYPACK_FORCE_INLINE __forceinline
 #endif
 

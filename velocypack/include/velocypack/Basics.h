@@ -45,7 +45,7 @@ class NonCopyable {
 };
 
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 // turn off warnings about unimplemented exception specifications
 #pragma warning(push)
 #pragma warning(disable : 4290)
@@ -59,7 +59,7 @@ struct NonHeapAllocatable {
   void operator delete[](void*) noexcept = delete;  
 };
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #pragma warning(pop)
 #endif
 

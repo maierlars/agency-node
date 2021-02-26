@@ -4,11 +4,14 @@
 
 #ifndef AGENCY_STORE_H
 #define AGENCY_STORE_H
+
+#include "node-operations.h"
+#include "node.h"
+
 #include <atomic>
 #include <mutex>
 #include <queue>
 #include <shared_mutex>
-#include "node.h"
 
 template <typename T>
 struct store_ttl {
